@@ -583,6 +583,63 @@ main{padding-top:6px}
   }
 }
 </style>
+
+<style id="v14-go-live-final">
+/* V14 GO-LIVE: final alignment only. Preserve the approved V13 look and feel. */
+@media (min-width:961px){
+  /* Shorten the hero from the bottom so the split panel feels tighter and the flame line reads above the destination card. */
+  .hero{min-height:600px;}
+  .hero-copy{padding-top:54px;padding-bottom:54px;}
+  .hero-visual{min-height:600px;overflow:hidden;}
+  .hero-visual img{
+    width:100%!important;
+    height:calc(100% + 54px)!important;
+    object-fit:cover!important;
+    object-position:50% 100%!important;
+    transform:translateY(-54px)!important;
+    transform-origin:center bottom!important;
+  }
+  .hero-venue{bottom:20px;}
+
+  /* Keep all three table visuals on one clean baseline. */
+  .menu-showcase{align-items:stretch!important;}
+  .menu-summary-card,
+  .menu-visual-panel,
+  .official-menu-figure,
+  .menu-photo-stack{height:610px!important;min-height:610px!important;}
+  .menu-summary-card{padding:28px 30px!important;}
+  .menu-venue-card-v8 .menu-intro{margin:12px 0 12px!important;}
+  .menu-venue-image-v8{min-height:0!important;height:auto!important;flex:1 1 auto!important;}
+  .official-menu-figure{overflow:hidden!important;display:flex!important;align-items:center!important;justify-content:center!important;}
+  .official-menu-figure img{
+    width:auto!important;
+    max-width:100%!important;
+    height:calc(100% - 18px)!important;
+    min-height:0!important;
+    object-fit:contain!important;
+    object-position:50% 50%!important;
+    margin:0 auto!important;
+    transform:translateY(9px)!important;
+  }
+  .menu-photo-stack{gap:12px!important;}
+  .menu-photo-stack img{min-height:0!important;height:100%!important;}
+}
+
+/* Keep the playlist section clean; the blue artwork is supplied separately for Spotify. */
+.sound-card{overflow:hidden;}
+
+@media(max-width:960px){
+  .hero{min-height:auto;}
+  .hero-visual{min-height:450px;}
+  .hero-visual img{transform:none!important;height:100%!important;object-position:50% 88%!important;}
+  .menu-summary-card,.menu-visual-panel,.official-menu-figure,.menu-photo-stack{height:auto!important;min-height:0!important;}
+  .official-menu-figure img{height:auto!important;width:100%!important;transform:translateY(6px)!important;}
+}
+@media(max-width:620px){
+  .hero-visual{min-height:390px;}
+  .hero-visual img{object-position:50% 86%!important;}
+}
+</style>
 </head>
 <body>
 <nav class="nav">

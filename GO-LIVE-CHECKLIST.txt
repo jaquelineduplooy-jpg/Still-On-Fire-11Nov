@@ -1,0 +1,14 @@
+STILL ON FIRE - GO LIVE CHECKLIST
+
+1. Publish index.html together with the assets and memory-reel folders.
+2. Keep the folder structure exactly as supplied.
+3. Spotify playlist cover: assets/spotify-still-on-fire-cover.png
+4. The Spotify embed points to playlist 0K93afeWZDNAKaFpOeS1Pa.
+5. The Memory Reel live/offline folders are included.
+
+QA completed:
+- no missing local files
+- no R825 menu price
+- no Kagga Kamma/Tankwa references
+- one official Vonkel Fees menu only
+- hero and menu alignment checked at desktop width
