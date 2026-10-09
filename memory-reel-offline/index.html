@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Moments to Remember - Offline Memory Reel</title>
+<style>
+  :root {
+    --navy-950:#071321;
+    --navy-900:#0a1b2f;
+    --navy-850:#0e2741;
+    --navy-800:#123554;
+    --navy-700:#1b4b73;
+    --blue:#75b8ed;
+    --blue-soft:#a9d4f5;
+    --glass:rgba(255,255,255,.065);
+    --line:rgba(168,210,244,.17);
+    --text:#f7fbff;
+    --muted:rgba(230,241,250,.72);
+  }
+
+  * { box-sizing:border-box; }
+
+  html, body {
+    margin:0;
+    height:100%;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background:
+      radial-gradient(circle at 82% 6%, rgba(80,151,207,.24), transparent 28%),
+      radial-gradient(circle at 6% 84%, rgba(24,83,128,.28), transparent 34%),
+      linear-gradient(135deg, var(--navy-950), var(--navy-850) 54%, #0b2036);
+    color:var(--text);
+    overflow:hidden;
+  }
+
+  .screen {
+    height:100svh;
+    min-height:0;
+    display:grid;
+    grid-template-rows:auto minmax(0,1fr) auto;
+    gap:18px;
+    padding:26px;
+    overflow:hidden;
+  }
+
+  .top {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:24px;
+    align-items:start;
+  }
+
+  .eyebrow,
+  .mini-kicker {
+    font-size:.78rem;
+    font-weight:950;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--blue-soft);
+  }
+
+  h1 {
+    margin:7px 0 7px;
+    font-size:clamp(3rem,4.7vw,5.1rem);
+    line-height:.95;
+    letter-spacing:-.055em;
+  }
+
+  .lead {
+    margin:0;
+    max-width:50ch;
+    color:var(--muted);
+    font-size:1.02rem;
+    line-height:1.42;
+  }
+
+  .top-tools {
+    display:flex;
+    gap:12px;
+    justify-content:flex-end;
+    align-items:flex-start;
+  }
+
+  .qr-card {
+    width:116px;
+    min-height:132px;
+    padding:8px;
+    border-radius:22px;
+    background:rgba(20,60,94,.62);
+    border:1px solid var(--line);
+    box-shadow:0 14px 34px rgba(0,0,0,.16);
+    text-align:center;
+  }
+
+  .qr-card img {
+    width:100%;
+    display:block;
+    background:#fff;
+    border-radius:14px;
+    padding:5px;
+  }
+
+  .qr-card strong {
+    display:block;
+    margin-top:6px;
+    font-size:.69rem;
+    line-height:1.08;
+  }
+
+  .qr-card span {
+    display:block;
+    margin-top:2px;
+    color:rgba(230,241,250,.64);
+    font-size:.60rem;
+    line-height:1.08;
+  }
+
+  .hero-stage {
+    display:grid;
+    grid-template-columns:minmax(0,1.08fr) minmax(420px,.92fr);
+    gap:20px;
+    min-height:0;
+    overflow:hidden;
+  }
+
+  .main-photo,
+  .reel-panel {
+    min-height:0;
+    overflow:hidden;
+    border-radius:30px;
+    border:1px solid rgba(117,184,237,.24);
+    box-shadow:0 22px 52px rgba(0,0,0,.20);
+  }
+
+  .main-photo {
+    position:relative;
+    height:100%;
+    background:
+      radial-gradient(circle at 50% 42%, rgba(71,145,203,.12), transparent 54%),
+      linear-gradient(145deg, #0a1b2f 0%, #0e2741 56%, #123554 100%);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .main-photo::before,
+  .main-photo::after {
+    content:none;
+  }
+
+  .main-photo img {
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    object-position:center;
+    display:block;
+    padding:0;
+    margin:0;
+    transform:none;
+    animation:none;
+    filter:contrast(1.025) saturate(1.025);
+    image-rendering:auto;
+    backface-visibility:hidden;
+  }
+
+  .reel-panel {
+    height:100%;
+    display:grid;
+    grid-template-rows:auto 330px auto;
+    gap:18px;
+    padding:22px;
+    background:
+      radial-gradient(circle at 100% 0%, rgba(71,145,203,.18), transparent 38%),
+      linear-gradient(145deg, rgba(16,52,83,.78), rgba(7,27,47,.88));
+  }
+
+  .reel-copy {
+    display:grid;
+    gap:7px;
+  }
+
+  .reel-copy h2 {
+    margin:0;
+    font-size:clamp(1.9rem,2.65vw,3rem);
+    line-height:1;
+    letter-spacing:-.05em;
+  }
+
+  .reel-copy p {
+    margin:0;
+    color:var(--muted);
+    font-size:.98rem;
+    line-height:1.4;
+    max-width:48ch;
+  }
+
+  .strip-wrap {
+    height:330px;
+    min-height:330px;
+    max-height:330px;
+    overflow:hidden;
+    display:flex;
+    align-items:center;
+    border-radius:26px;
+    border:1px solid var(--line);
+    background:rgba(255,255,255,.035);
+  }
+
+  .strip {
+    display:flex;
+    gap:18px;
+    width:max-content;
+    align-items:center;
+    will-change:transform;
+    transform:translate3d(0,0,0);
+  }
+
+  .frame {
+    width:280px;
+    height:194px;
+    overflow:hidden;
+    flex:0 0 280px;
+    position:relative;
+    isolation:isolate;
+    border-radius:22px;
+    border:2px solid rgba(159,207,244,.16);
+    background:rgba(255,255,255,.04);
+  }
+
+  .frame::before { content:none; }
+
+  .frame img {
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    object-position:center;
+    display:block;
+    padding:0;
+    filter:contrast(1.02) saturate(1.02);
+    image-rendering:auto;
+  }
+
+  .reel-footer {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+
+  .reel-stat {
+    min-height:72px;
+    padding:14px;
+    border-radius:18px;
+    background:rgba(116,184,237,.075);
+    border:1px solid var(--line);
+  }
+
+  .reel-stat strong {
+    display:block;
+    font-size:.92rem;
+    margin-bottom:3px;
+  }
+
+  .reel-stat span {
+    color:rgba(230,241,250,.66);
+    font-size:.84rem;
+    line-height:1.24;
+  }
+
+  .bottom {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:18px;
+    min-height:0;
+    color:rgba(230,241,250,.70);
+    font-size:.94rem;
+  }
+
+  .badge {
+    display:inline-flex;
+    align-items:center;
+    min-height:38px;
+    padding:0 14px;
+    border-radius:999px;
+    background:rgba(117,184,237,.09);
+    border:1px solid var(--line);
+    color:rgba(230,241,250,.80);
+    white-space:nowrap;
+  }
+
+  @media (max-width:1200px) {
+    .top { grid-template-columns:1fr; }
+    .top-tools { justify-content:flex-start; }
+  }
+
+  @media (max-width:980px) {
+    html, body { overflow:auto; }
+    .screen { height:auto; min-height:100svh; padding:20px; overflow:visible; }
+    .hero-stage { grid-template-columns:1fr; overflow:visible; }
+    .main-photo { min-height:52svh; }
+    .reel-panel { grid-template-rows:auto 280px auto; }
+    .strip-wrap { height:280px; min-height:280px; max-height:280px; }
+    .frame { width:230px; height:160px; flex-basis:230px; }
+    .bottom { display:grid; }
+    .badge { white-space:normal; width:max-content; }
+  }
+
+  @media (max-width:620px) {
+    .screen { padding:15px; gap:14px; }
+    h1 { font-size:clamp(2.45rem,10vw,4rem); }
+    .reel-footer { grid-template-columns:1fr; }
+  }
+
+
+  /* FINAL V2: consistent dark navy reel surfaces */
+  html, body {
+    background:#061321 !important;
+  }
+  .screen {
+    background:linear-gradient(145deg,#061321 0%,#0a1b2f 58%,#0d2741 100%) !important;
+  }
+  .main-photo {
+    background:#081a2c !important;
+    border-color:rgba(117,184,237,.24) !important;
+  }
+  .main-photo::before,
+  .main-photo::after {
+    content:none !important;
+    display:none !important;
+  }
+  .reel-panel {
+    background:linear-gradient(145deg,#0a1b2f 0%,#0d2741 54%,#123554 100%) !important;
+  }
+  .strip-wrap {
+    background:#091b2e !important;
+  }
+  .frame {
+    background:#0b2036 !important;
+  }
+  .frame::before {
+    content:none !important;
+    display:none !important;
+  }
+  .reel-stat,
+  .qr-card,
+  .badge {
+    background:rgba(20,60,94,.64) !important;
+  }
+
+
+
+  /* FINAL V2: crisp offline photos - no generated enlargement */
+  .main-photo {
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    background:#081a2c !important;
+  }
+  .main-photo img {
+    width:auto !important;
+    height:auto !important;
+    max-width:100% !important;
+    max-height:100% !important;
+    object-fit:contain !important;
+    object-position:center !important;
+    padding:0 !important;
+    margin:0 auto !important;
+    transform:none !important;
+    animation:none !important;
+    filter:none !important;
+    image-rendering:auto !important;
+  }
+  .frame img {
+    width:100% !important;
+    height:100% !important;
+    object-fit:cover !important;
+    padding:0 !important;
+    filter:none !important;
+    transform:none !important;
+    image-rendering:auto !important;
+  }
+
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="top">
+    <div>
+      <div class="eyebrow">Offline memory reel</div>
+      <h1>Moments to Remember</h1>
+      <p class="lead">A living gallery of the people, laughter and moments worth keeping.</p>
+    </div>
+    <div class="top-tools">
+      <div class="qr-card">
+        <img src="assets/photos-qr.png" alt="QR code to share photos" />
+        <strong>Share photos</strong>
+        <span>Scan to add yours</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-stage">
+    <div class="main-photo" id="mainPhotoWrap">
+      <img id="heroImage" src="assets/photo_01.jpg" alt="Celebration memory" />
+    </div>
+
+    <section class="reel-panel" aria-label="Rolling memory reel">
+      <div class="reel-copy">
+        <div class="mini-kicker">Now rolling</div>
+        <h2>Memories, on repeat.</h2>
+        <p>The same screen experience runs from local photos, so it stays polished and consistent even without a connection.</p>
+      </div>
+
+      <div class="strip-wrap"><div class="strip" id="strip"></div></div>
+
+      <div class="reel-footer">
+        <div class="reel-stat"><strong>Made to keep moving</strong><span>A quiet, continuous loop that can stay on screen throughout the event.</span></div>
+        <div class="reel-stat"><strong>Local and reliable</strong><span>The reel runs entirely from the saved celebration photos in this folder.</span></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="bottom">
+    <div>The moments, people and stories worth keeping.</div>
+    <div class="badge">Offline reel</div>
+  </div>
+</div>
+<script>
+  const IMAGES = [
+    "assets/photo_01.jpg","assets/photo_02.jpg","assets/photo_06.jpg","assets/photo_07.jpg","assets/photo_08.jpg","assets/photo_09.jpg","assets/photo_10.jpg"
+  ];
+
+  function cssUrl(url) { return `url("${String(url).replace(/"/g,"%22")}")`; }
+
+  function startStrip(urls) {
+    const doubled=urls.concat(urls);
+    const strip=document.getElementById("strip");
+    strip.innerHTML=doubled.map(url=>`<div class="frame" style="--thumb-image:${cssUrl(url)}"><img src="${url}" alt="Celebration memory" /></div>`).join("");
+    let x=0, paused=false, loopWidth=0;
+    const SPEED=.32;
+    function getLoopWidth() { const frame=strip.querySelector(".frame"); return frame ? (frame.getBoundingClientRect().width+18)*urls.length : 0; }
+    function tick() { if (!paused) { if (!loopWidth) loopWidth=getLoopWidth(); x-=SPEED; if (Math.abs(x)>=loopWidth) x=0; strip.style.transform=`translate3d(${x}px,0,0)`; } requestAnimationFrame(tick); }
+    strip.parentElement.addEventListener("mouseenter",()=>paused=true);
+    strip.parentElement.addEventListener("mouseleave",()=>paused=false);
+    strip.parentElement.addEventListener("touchstart",()=>paused=true,{passive:true});
+    strip.parentElement.addEventListener("touchend",()=>paused=false);
+    window.addEventListener("resize",()=>{loopWidth=0;});
+    tick();
+  }
+
+  function startHero(urls) {
+    const hero=document.getElementById("heroImage");
+    const wrap=document.getElementById("mainPhotoWrap");
+    let index=0;
+    function setHero(url) { hero.src=url; wrap.style.setProperty("--active-image",cssUrl(url)); }
+    setHero(urls[0]);
+    setInterval(()=>{ index=(index+1)%urls.length; setHero(urls[index]); },5600);
+  }
+
+  startStrip(IMAGES);
+  startHero(IMAGES);
+</script>
+</body>
+</html>
