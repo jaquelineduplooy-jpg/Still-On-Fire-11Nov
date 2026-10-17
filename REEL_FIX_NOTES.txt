@@ -1,0 +1,47 @@
+STILL ON FIRE | V17 Memory Reel Repair
+====================================
+
+Release contents
+----------------
+This is the complete corrected website, based on the uploaded V16 source.
+The existing site design, layout and other content have been preserved.
+
+Fixed
+-----
+1. The Live and Offline reels now use ../assets/ for saved photographs and
+   the QR image; their previous nested assets/ paths were broken.
+2. The photo frames use contain/center so full photographs are visible:
+   no automatic head-cropping or stretched portraits.
+3. Both the hero slideshow and the filmstrip start with shuffled photographs.
+   The first photograph is remembered in the current browser session and a
+   different starting photograph is chosen on the next page load if possible.
+4. The moving strip seamlessly builds new shuffled batches; it is not a
+   doubled fixed-order loop. Shuffle includes all photos received from the feed.
+5. The seven saved photographs are shown immediately if Google live sync cannot
+   be reached. Inaccessible URLs from a successful feed are rejected, and
+   new valid feed photographs are added alongside the saved ones.
+6. The live feed is checked every two minutes. The Live Reel status shows whether
+   it connected; the offline reel never requires internet.
+7. Photo panels now adapt to laptop and phone displays without cutting off the
+   lower informational cards.
+
+Important notes
+---------------
+* Only seven local memory photographs were present in the uploaded V16 ZIP:
+  photo_01.jpg, photo_02.jpg, photo_06.jpg through photo_10.jpg. Other photos
+  must come from the existing live Google feed; they are NOT included here.
+* The existing Google Apps Script URL is unchanged. External service access,
+  permissions, CORS, and content of the user's live folder cannot be confirmed
+  through this offline package. If the Live Reel shows "live sync unavailable",
+  the Google Apps Script endpoint and/or photo permissions need attention.
+* The original design's third-party Spotify player requires internet.
+
+Deploy
+------
+Unzip the entire package and redeploy its contents to the site's existing
+hosting project, keeping the same folder structure. The new shared script
+assets/memory-reel.js is essential. Do not upload just index.html.
+
+To test without the internet, unzip and open memory-reel-offline/index.html.
+For a live test, deploy and open memory-reel-live/index.html; read the small
+sync indicator at the bottom right.

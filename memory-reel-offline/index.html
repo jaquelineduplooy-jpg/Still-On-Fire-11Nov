@@ -380,6 +380,27 @@
     image-rendering:auto !important;
   }
 
+
+/* REEL REPAIR: letterbox rather than cropping portraits or cutting off heads. */
+.frame{display:flex;align-items:center;justify-content:center;background:#0b2036!important}
+.frame img{display:block;width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important;image-orientation:from-image;padding:5px!important;filter:none!important}
+.main-photo img{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important;padding:6px!important;animation:none!important;transform:none!important;filter:none!important}
+
+/* REEL REPAIR: fit the entire photo panel on laptop screens and keep mobile scrolling natural. */
+@media (min-width:981px) {
+  .reel-panel {grid-template-rows:auto minmax(150px,1fr) auto!important;gap:12px!important;padding:18px!important}
+  .strip-wrap {height:100%!important;min-height:150px!important;max-height:none!important}
+}
+@media (min-width:981px) and (max-height:690px) {
+  html,body{height:auto!important;overflow-y:auto!important}
+  .screen{height:auto!important;min-height:100svh!important}
+  .hero-stage{min-height:510px!important}
+}
+@media (max-width:980px) {
+  html,body{height:auto!important;min-height:100%!important;overflow-x:hidden!important;overflow-y:auto!important}
+  .screen{height:auto!important;min-height:100svh!important;overflow:visible!important}
+  .reel-panel{height:auto!important}
+}
 </style>
 </head>
 <body>
@@ -392,7 +413,7 @@
     </div>
     <div class="top-tools">
       <div class="qr-card">
-        <img src="assets/photos-qr.png" alt="QR code to share photos" />
+        <img src="../assets/photos-qr.png" alt="QR code to share photos" />
         <strong>Share photos</strong>
         <span>Scan to add yours</span>
       </div>
@@ -401,7 +422,7 @@
 
   <div class="hero-stage">
     <div class="main-photo" id="mainPhotoWrap">
-      <img id="heroImage" src="assets/photo_01.jpg" alt="Celebration memory" />
+      <img id="heroImage" src="../assets/photo_01.jpg" alt="Celebration memory" />
     </div>
 
     <section class="reel-panel" aria-label="Rolling memory reel">
@@ -425,40 +446,17 @@
     <div class="badge">Offline reel</div>
   </div>
 </div>
+<script src="../assets/memory-reel.js"></script>
 <script>
-  const IMAGES = [
-    "assets/photo_01.jpg","assets/photo_02.jpg","assets/photo_06.jpg","assets/photo_07.jpg","assets/photo_08.jpg","assets/photo_09.jpg","assets/photo_10.jpg"
-  ];
-
-  function cssUrl(url) { return `url("${String(url).replace(/"/g,"%22")}")`; }
-
-  function startStrip(urls) {
-    const doubled=urls.concat(urls);
-    const strip=document.getElementById("strip");
-    strip.innerHTML=doubled.map(url=>`<div class="frame" style="--thumb-image:${cssUrl(url)}"><img src="${url}" alt="Celebration memory" /></div>`).join("");
-    let x=0, paused=false, loopWidth=0;
-    const SPEED=.32;
-    function getLoopWidth() { const frame=strip.querySelector(".frame"); return frame ? (frame.getBoundingClientRect().width+18)*urls.length : 0; }
-    function tick() { if (!paused) { if (!loopWidth) loopWidth=getLoopWidth(); x-=SPEED; if (Math.abs(x)>=loopWidth) x=0; strip.style.transform=`translate3d(${x}px,0,0)`; } requestAnimationFrame(tick); }
-    strip.parentElement.addEventListener("mouseenter",()=>paused=true);
-    strip.parentElement.addEventListener("mouseleave",()=>paused=false);
-    strip.parentElement.addEventListener("touchstart",()=>paused=true,{passive:true});
-    strip.parentElement.addEventListener("touchend",()=>paused=false);
-    window.addEventListener("resize",()=>{loopWidth=0;});
-    tick();
-  }
-
-  function startHero(urls) {
-    const hero=document.getElementById("heroImage");
-    const wrap=document.getElementById("mainPhotoWrap");
-    let index=0;
-    function setHero(url) { hero.src=url; wrap.style.setProperty("--active-image",cssUrl(url)); }
-    setHero(urls[0]);
-    setInterval(()=>{ index=(index+1)%urls.length; setHero(urls[index]); },5600);
-  }
-
-  startStrip(IMAGES);
-  startHero(IMAGES);
+StillOnFireReel.mount({
+  trackId: "strip",
+  frameClass: "frame",
+  heroId: "heroImage",
+  key: "memory-reel-offline",
+  fallback: ["../assets/photo_01.jpg", "../assets/photo_02.jpg", "../assets/photo_06.jpg", "../assets/photo_07.jpg", "../assets/photo_08.jpg", "../assets/photo_09.jpg", "../assets/photo_10.jpg"],
+  heroInterval: 5600,
+  speed: 19,
+});
 </script>
 </body>
 </html>

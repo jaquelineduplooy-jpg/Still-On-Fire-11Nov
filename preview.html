@@ -558,6 +558,10 @@ main{padding-top:6px}
   .olive-card img{object-position:center center;}
 }
 
+
+/* REEL REPAIR: keep every photo visible inside its original film frame. */
+.film-frame{display:flex;align-items:center;justify-content:center;background:#0b2036!important}
+.film-frame img{display:block;width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important;image-orientation:from-image;padding:5px!important;background:#0b2036}
 </style>
 
 <style id="v13-true-center-fix">
@@ -759,6 +763,19 @@ main{padding-top:6px}
 }
 </style>
 
+
+<style id="v16-desktop-hero-alignment">
+/* V16: lock the left CTA row and right destination card to the same desktop baseline. */
+@media (min-width:961px){
+  .hero-copy .button-row{
+    margin-top:auto!important;
+    padding-top:30px!important;
+  }
+  .hero-venue{
+    bottom:54px!important;
+  }
+}
+</style>
 </head>
 <body>
 <nav class="nav">
@@ -881,33 +898,17 @@ main{padding-top:6px}
 
 <footer class="footer">Still On Fire · Dad's 70th · Franschhoek · 11 November</footer>
 
+<script src="assets/memory-reel.js"></script>
 <script>
-const GOOGLE_DRIVE_PHOTO_FEED_URL = "https://script.google.com/macros/s/AKfycbyaEMBcOb0-FisrU5Zm3yi4w9ptceioZ2Ng8PJJJq0G6KBGcEPNdmloexOXgNlugCHe/exec";
-const FALLBACK_IMAGES = [
-  "assets/photo_01.jpg","assets/photo_02.jpg","assets/photo_06.jpg","assets/photo_07.jpg","assets/photo_08.jpg","assets/photo_09.jpg","assets/photo_10.jpg"
-];
-async function loadDriveImages(){
-  try{
-    const response=await fetch(GOOGLE_DRIVE_PHOTO_FEED_URL,{cache:"no-store"});
-    if(!response.ok) throw new Error("Photo feed unavailable");
-    const data=await response.json();
-    const images=Array.isArray(data)?data:(data.images||data.items||[]);
-    const urls=images.map(item=>typeof item==="string"?item:(item.url||item.src||item.downloadUrl)).filter(Boolean);
-    return urls.length?urls:FALLBACK_IMAGES;
-  }catch(error){return FALLBACK_IMAGES;}
-}
-function makeFrames(track,urls){
-  if(!track) return;
-  const usable=urls.slice(0,14); const doubled=usable.concat(usable);
-  track.innerHTML=doubled.map(url=>`<div class="film-frame"><img src="${url}" loading="lazy" alt="Family memory" /></div>`).join("");
-  let x=0,paused=false,loopWidth=0;
-  function getLoopWidth(){const frame=track.querySelector(".film-frame");return frame?(frame.getBoundingClientRect().width+18)*usable.length:0;}
-  function step(){if(!paused){if(!loopWidth)loopWidth=getLoopWidth();x-=0.35;if(Math.abs(x)>=loopWidth)x=0;track.style.transform=`translate3d(${x}px,0,0)`;}requestAnimationFrame(step);}
-  track.parentElement.addEventListener("mouseenter",()=>paused=true); track.parentElement.addEventListener("mouseleave",()=>paused=false);
-  track.parentElement.addEventListener("touchstart",()=>paused=true,{passive:true}); track.parentElement.addEventListener("touchend",()=>paused=false);
-  window.addEventListener("resize",()=>{loopWidth=0}); step();
-}
-loadDriveImages().then(urls=>makeFrames(document.getElementById("memoryTrack"),urls));
+StillOnFireReel.mount({
+  trackId: "memoryTrack",
+  frameClass: "film-frame",
+  key: "main-memory-reel",
+  fallback: ["assets/photo_01.jpg", "assets/photo_02.jpg", "assets/photo_06.jpg", "assets/photo_07.jpg", "assets/photo_08.jpg", "assets/photo_09.jpg", "assets/photo_10.jpg"],
+  speed: 19,
+  feedUrl: "https://script.google.com/macros/s/AKfycbyaEMBcOb0-FisrU5Zm3yi4w9ptceioZ2Ng8PJJJq0G6KBGcEPNdmloexOXgNlugCHe/exec",
+  refreshEveryMs: 120000,
+});
 </script>
 </body>
 </html>
