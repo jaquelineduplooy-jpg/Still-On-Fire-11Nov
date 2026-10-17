@@ -186,7 +186,7 @@ main{padding:8px 0 70px}
 .film-window{overflow:hidden;border-radius:22px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.09);padding:14px}
 .film-track{display:flex;gap:18px;width:max-content;will-change:transform}
 .film-frame{width:290px;height:195px;flex:0 0 290px;border-radius:18px;overflow:hidden;background:#111;border:1px solid rgba(255,255,255,.08)}
-.film-frame img{width:100%;height:100%;object-fit:cover}
+.film-frame img{display:block;width:100%;height:100%;object-fit:contain;object-position:center;image-orientation:from-image;padding:5px;background:#0b2036}
 .share-note{margin-top:22px;padding:22px;border-radius:22px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center}
 .share-note h3{margin:0 0 6px;font-family:Georgia,"Times New Roman",serif;font-size:1.4rem;font-weight:500}.share-note p{margin:0;color:rgba(255,255,255,.68);line-height:1.45}
 .share-note .button-row{margin:0;justify-content:flex-end}
@@ -558,10 +558,6 @@ main{padding-top:6px}
   .olive-card img{object-position:center center;}
 }
 
-
-/* REEL REPAIR: keep every photo visible inside its original film frame. */
-.film-frame{display:flex;align-items:center;justify-content:center;background:#0b2036!important}
-.film-frame img{display:block;width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important;image-orientation:from-image;padding:5px!important;background:#0b2036}
 </style>
 
 <style id="v13-true-center-fix">
@@ -776,6 +772,69 @@ main{padding-top:6px}
   }
 }
 </style>
+
+<style id="v20-kose-final">
+/* V20: approved V16 baseline + full Kosé fire hero + clean white menu card. */
+.hero-visual{
+  background:#07090b;
+  position:relative;
+  isolation:isolate;
+}
+.hero-visual::before{display:none!important}
+.hero-visual::after{display:none!important}
+.hero-visual>img{
+  position:relative;
+  z-index:2;
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  object-position:center center!important;
+  transform:none!important;
+  display:block;
+}
+.hero-venue{display:none!important}
+
+.official-menu-figure{
+  background:#fff!important;
+  border:1px solid #d9e2ef!important;
+  box-shadow:0 18px 46px rgba(7,27,51,.08)!important;
+  padding:18px!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+.official-menu-figure img{
+  background:transparent!important;
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  object-fit:contain!important;
+  object-position:center center!important;
+  margin:0 auto!important;
+  transform:none!important;
+}
+
+@media (max-width:960px){
+  .hero-visual{
+    height:auto!important;
+    min-height:0!important;
+    aspect-ratio:710/900;
+  }
+  .hero-visual>img{
+    width:100%!important;
+    height:100%!important;
+    object-fit:contain!important;
+    object-position:center center!important;
+    transform:none!important;
+  }
+  .official-menu-figure{padding:12px!important;background:#fff!important}
+  .official-menu-figure img{height:auto!important;width:100%!important;object-fit:contain!important}
+}
+
+@media (max-width:620px){
+  .hero-visual{aspect-ratio:710/980;}
+}
+</style>
+
 </head>
 <body>
 <nav class="nav">
@@ -801,8 +860,7 @@ main{padding-top:6px}
     </div>
   </div>
   <div class="hero-visual">
-    <img src="assets/kose-fire.jpg" alt="Braai fire at Kose Franschhoek" fetchpriority="high" decoding="async" />
-    <div class="hero-venue"><span>The destination</span><strong>Kosé · Fleur Vue Farm · Franschhoek</strong></div>
+    <img src="assets/kose-fire-full.png" alt="Kosé Franschhoek authentic South African braai and wine experience" fetchpriority="high" decoding="async" />
   </div>
 </header>
 
@@ -841,7 +899,7 @@ main{padding-top:6px}
   </div>
   <div class="menu-visual-panel">
     <figure class="official-menu-figure">
-      <img src="assets/vonkel-fees-official-no-price.jpg" alt="Kosé Vonkel Fees Braai to Table menu" loading="lazy" decoding="async" />
+      <img src="assets/vonkel-fees-clean.png" alt="Kosé Vonkel Fees Braai to Table menu" loading="lazy" decoding="async" />
     </figure>
     <div class="menu-photo-stack">
       <img src="assets/kose-tomahawk-v8.jpg" alt="Tomahawk cooking over the fire at Kosé" loading="lazy" decoding="async" />
@@ -900,15 +958,15 @@ main{padding-top:6px}
 
 <script src="assets/memory-reel.js"></script>
 <script>
-StillOnFireReel.mount({
-  trackId: "memoryTrack",
-  frameClass: "film-frame",
-  key: "main-memory-reel",
-  fallback: ["assets/photo_01.jpg", "assets/photo_02.jpg", "assets/photo_06.jpg", "assets/photo_07.jpg", "assets/photo_08.jpg", "assets/photo_09.jpg", "assets/photo_10.jpg"],
-  speed: 19,
-  feedUrl: "https://script.google.com/macros/s/AKfycbyaEMBcOb0-FisrU5Zm3yi4w9ptceioZ2Ng8PJJJq0G6KBGcEPNdmloexOXgNlugCHe/exec",
-  refreshEveryMs: 120000,
-});
+  StillOnFireReel.mount({
+    trackId: "memoryTrack",
+    frameClass: "film-frame",
+    key: "still-on-fire-home",
+    fallback: ["assets/photo_01.jpg", "assets/photo_02.jpg", "assets/photo_06.jpg", "assets/photo_07.jpg", "assets/photo_08.jpg", "assets/photo_09.jpg", "assets/photo_10.jpg"],
+    feedUrl: "https://script.google.com/macros/s/AKfycbyaEMBcOb0-FisrU5Zm3yi4w9ptceioZ2Ng8PJJJq0G6KBGcEPNdmloexOXgNlugCHe/exec",
+    refreshEveryMs: 120000,
+    speed: 21
+  });
 </script>
 </body>
 </html>

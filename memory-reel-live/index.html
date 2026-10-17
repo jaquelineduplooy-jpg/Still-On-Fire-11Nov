@@ -382,26 +382,14 @@
     image-rendering:auto !important;
   }
 
-/* REEL REPAIR: letterbox rather than cropping portraits or cutting off heads. */
-.frame{display:flex;align-items:center;justify-content:center;background:#0b2036!important}
-.frame img{display:block;width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important;image-orientation:from-image;padding:5px!important;filter:none!important}
-.main-photo img{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important;padding:6px!important;animation:none!important;transform:none!important;filter:none!important}
-
-/* REEL REPAIR: fit the entire photo panel on laptop screens and keep mobile scrolling natural. */
-@media (min-width:981px) {
-  .reel-panel {grid-template-rows:auto minmax(150px,1fr) auto!important;gap:12px!important;padding:18px!important}
-  .strip-wrap {height:100%!important;min-height:150px!important;max-height:none!important}
-}
-@media (min-width:981px) and (max-height:690px) {
-  html,body{height:auto!important;overflow-y:auto!important}
-  .screen{height:auto!important;min-height:100svh!important}
-  .hero-stage{min-height:510px!important}
-}
-@media (max-width:980px) {
-  html,body{height:auto!important;min-height:100%!important;overflow-x:hidden!important;overflow-y:auto!important}
-  .screen{height:auto!important;min-height:100svh!important;overflow:visible!important}
-  .reel-panel{height:auto!important}
-}
+  /* V20 reel repair: let the document scroll naturally on phones.
+     The former height:100% / overflow:auto on body trapped the reel below
+     the fold inside a separate scroll container. */
+  @media (max-width:980px) {
+    html { height:auto !important; min-height:100% !important; overflow-x:hidden !important; overflow-y:auto !important; }
+    body { height:auto !important; min-height:100svh !important; overflow:visible !important; }
+    .screen { height:auto !important; min-height:100svh !important; overflow:visible !important; }
+  }
 </style>
 </head>
 <body>
@@ -444,23 +432,23 @@
 
   <div class="bottom">
     <div>The moments, people and stories worth keeping.</div>
-    <div class="badge" id="feedStatus" role="status" aria-live="polite">Saved memories · connecting</div>
+    <div class="badge" id="reelSyncStatus" role="status" aria-live="polite">Saved memories · connecting</div>
   </div>
 </div>
 <script src="../assets/memory-reel.js"></script>
 <script>
-StillOnFireReel.mount({
-  trackId: "strip",
-  frameClass: "frame",
-  heroId: "heroImage",
-  key: "memory-reel-live",
-  fallback: ["../assets/photo_01.jpg", "../assets/photo_02.jpg", "../assets/photo_06.jpg", "../assets/photo_07.jpg", "../assets/photo_08.jpg", "../assets/photo_09.jpg", "../assets/photo_10.jpg"],
-  heroInterval: 5600,
-  speed: 19,
-  feedUrl: "https://script.google.com/macros/s/AKfycbyaEMBcOb0-FisrU5Zm3yi4w9ptceioZ2Ng8PJJJq0G6KBGcEPNdmloexOXgNlugCHe/exec",
-  refreshEveryMs: 120000,
-  statusId: "feedStatus",
-});
+  StillOnFireReel.mount({
+    trackId: "strip",
+    heroId: "heroImage",
+    statusId: "reelSyncStatus",
+    frameClass: "frame",
+    key: "still-on-fire-live",
+    fallback: ["../assets/photo_01.jpg", "../assets/photo_02.jpg", "../assets/photo_06.jpg", "../assets/photo_07.jpg", "../assets/photo_08.jpg", "../assets/photo_09.jpg", "../assets/photo_10.jpg"],
+    feedUrl: "https://script.google.com/macros/s/AKfycbyaEMBcOb0-FisrU5Zm3yi4w9ptceioZ2Ng8PJJJq0G6KBGcEPNdmloexOXgNlugCHe/exec",
+    refreshEveryMs: 90000,
+    speed: 19,
+    heroInterval: 5600
+  });
 </script>
 </body>
 </html>

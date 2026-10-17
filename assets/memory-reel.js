@@ -7,7 +7,7 @@
   function uniquePhotos(values) {
     const seen = new Set();
     return values.map(value => String(value || '').trim()).filter(value => {
-      if (!value || /^(?:javascript|vbscript|blob):/i.test(value) || seen.has(value)) return false;
+      if (!value || !/^(?:https?:\/\/|\.\.?\/|assets\/|data:image\/(?:jpeg|png|gif|webp);base64,)/i.test(value) || seen.has(value)) return false;
       seen.add(value);
       return true;
     });
@@ -180,6 +180,8 @@
     let last = '', active = true;
     function change() {
       if (!active || document.hidden) return;
+      hero.dataset.retry = '0';
+      hero.style.visibility = 'visible';
       let src = deck.next();
       if (src === last && photos.length > 1) src = deck.next();
       last = src;
@@ -188,7 +190,7 @@
     hero.onerror = function () {
       if (hero.dataset.retry === '1') { hero.style.visibility = 'hidden'; return; }
       hero.dataset.retry = '1';
-      hero.src = settings.fallback[0];
+      hero.src = settings.fallback[Math.floor(Math.random() * settings.fallback.length)];
     };
     hero.dataset.retry = '0';
     hero.style.visibility = 'visible';
@@ -201,10 +203,21 @@
     return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w1600';
   }
 
+  function normalizeDriveLink(value) {
+    const filePath = value.match(/^https?:\/\/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]{20,})/i);
+    if (filePath) return fromDriveId(filePath[1]);
+    const ucLink = value.match(/^https?:\/\/drive\.google\.com\/(?:open|uc)\?/i);
+    if (ucLink) {
+      try { const id = new URL(value).searchParams.get('id'); if (id) return fromDriveId(id); }
+      catch (_) {}
+    }
+    return value;
+  }
+
   function itemUrl(item) {
     if (typeof item === 'string') {
       const value = item.trim();
-      return /^[a-zA-Z0-9_-]{24,}$/.test(value) ? fromDriveId(value) : value;
+      return /^[a-zA-Z0-9_-]{24,}$/.test(value) ? fromDriveId(value) : normalizeDriveLink(value);
     }
     if (!item || typeof item !== 'object') return null;
     const source = item.url || item.src || item.imageUrl || item.thumbnailUrl || item.thumbnailLink || item.downloadUrl || item.webContentLink || item.photoUrl || item.image || item.link;
@@ -215,7 +228,7 @@
   function parseFeed(json) {
     if (Array.isArray(json)) return uniquePhotos(json.map(itemUrl));
     if (!json || typeof json !== 'object') return [];
-    const arrays = [json.images, json.photos, json.items, json.files, json.results, json.data, json.data && json.data.images, json.data && json.data.photos].filter(Array.isArray);
+    const arrays = [json.images, json.photos, json.items, json.files, json.results, json.data, json.data && json.data.images, json.data && json.data.photos, json.data && json.data.items].filter(Array.isArray);
     return uniquePhotos((arrays[0] || []).map(itemUrl));
   }
 
