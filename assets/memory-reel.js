@@ -1,4 +1,4 @@
-/* Still On Fire | V22 - direct Tankwa-style Google Apps Script feed + TV-quality shuffle.
+/* Still On Fire | V23 - diagnosed Google photo relay, bounded checks + HD shuffle.
    The public Google Apps Script returns display-ready photo URLs. Keep those URLs:
    never replace them with drive.google.com/thumbnail links guessed from a Drive ID.
    Shuffle distinct photos without repeating until a complete deck has been shown.
@@ -142,11 +142,11 @@
     });
   }
   async function firstWorking(candidates, timeoutMs) {
-    for (const url of candidates) {
-      const loaded = await loadPhoto(url,timeoutMs);
-      if (loaded) return loaded;
-    }
-    return null;
+    // V22 waited for up to ten photos * several sequential 4-second failures.
+    // Check candidates concurrently: the connection indicator cannot hang for minutes.
+    const choices=[...new Set(candidates)].slice(0,3);
+    const results=await Promise.all(choices.map(src=>loadPhoto(src,Math.min(3800,timeoutMs||3800))));
+    return results.filter(Boolean).sort((a,b)=>b.width-a.width)[0]||null;
   }
 
   function buildHero(img, photos, opts) {
@@ -261,13 +261,76 @@
 
   async function loadFeed(url,timeoutMs) {
     const controller=new AbortController();
-    const alarm=setTimeout(()=>controller.abort(),timeoutMs||15000);
+    const alarm=setTimeout(()=>controller.abort(),timeoutMs||9000);
     try {
       const res=await fetch(url,{cache:'no-store',signal:controller.signal,redirect:'follow'});
-      if(!res.ok)throw new Error('Feed HTTP '+res.status);
-      const json=await res.json();
-      return parseFeed(json);
-    } finally {clearTimeout(alarm);}
+      let json=null;
+      try { json=await res.json(); } catch(_) { /* HTML login or blocked redirect */ }
+      if(!res.ok) {
+        const error=new Error('Photo service HTTP '+res.status);
+        error.code=json&&json.code||'HTTP_'+res.status;
+        throw error;
+      }
+      const images=parseFeed(json);
+      if(!images.length) {const error=new Error('Photo feed contains no valid image URLs');error.code='EMPTY_PHOTO_FEED';throw error;}
+      return images;
+    } finally { clearTimeout(alarm); }
+  }
+
+  function loadJsonp(url,timeoutMs) {
+    return new Promise((resolve,reject)=>{
+      // Works only when Apps Script returns read-only JSONP. The optional
+      // Code.gs in this package implements that protocol.
+      const callback='sofireGalleryCallback'+Math.floor(Math.random()*1000000000);
+      const tag=document.createElement('script');
+      const sep=url.indexOf('?')<0?'?':'&';
+      let finished=false;
+      const alarm=setTimeout(()=>done(null,new Error('JSONP connection timed out')),timeoutMs||8500);
+      function done(photos,err) {
+        if(finished)return;
+        finished=true;clearTimeout(alarm);tag.remove();
+        try{delete window[callback];}catch(_){window[callback]=undefined;}
+        if(err)reject(err);else resolve(photos);
+      }
+      window[callback]=function(payload){
+        const photos=parseFeed(payload);
+        if(photos.length)done(photos,null);
+        else done(null,new Error('JSONP returned no photographs'));
+      };
+      tag.onerror=()=>done(null,new Error('Google script tag rejected'));
+      tag.src=url+sep+'callback='+encodeURIComponent(callback);
+      document.head.appendChild(tag);
+    });
+  }
+
+  function firstAvailable(tasks) {
+    return new Promise((resolve,reject)=>{
+      if(!tasks.length){reject(new Error('No photo feeds configured'));return;}
+      let remaining=tasks.length;
+      const failed=[];
+      tasks.forEach(task=>Promise.resolve().then(task).then(resolve,err=>{
+        failed.push(err);
+        if(--remaining===0) {
+          const problem=new Error('No photo source is reachable');
+          problem.causes=failed;
+          reject(problem);
+        }
+      }));
+    });
+  }
+
+  async function getLivePhotos(opts) {
+    const routes=[];
+    if(opts.feedUrl)routes.push(()=>loadFeed(opts.feedUrl,18000));
+    if(opts.directFeedUrl)routes.push(()=>loadFeed(opts.directFeedUrl,8500));
+    if(opts.jsonpFeedUrl)routes.push(()=>loadJsonp(opts.jsonpFeedUrl,8500));
+    return firstAvailable(routes);
+  }
+
+  function failureCode(err) {
+    const causes=err&&err.causes||[err];
+    const chosen=causes.find(e=>e&&e.code&&e.code!=='HTTP_404')||causes.find(e=>e&&e.code);
+    return chosen&&chosen.code||'GOOGLE_FEED_BLOCKED';
   }
 
   function mount(opts) {
@@ -291,33 +354,40 @@
       slide=buildHero(hero,photos,Object.assign({},opts,{onHeroChange:key=>{debug.changes.push(key);if(debug.changes.length>300)debug.changes.shift();}}));
     }
     show(backup,'saved');
-    report(opts.feedUrl?'Connecting to photos… · '+backup.length+' saved backups':'Offline · '+backup.length+' HD photos');
+    const shouldConnect=!!(opts.feedUrl||opts.directFeedUrl||opts.jsonpFeedUrl);
+    report(shouldConnect?'Connecting to Google Drive… · '+backup.length+' emergency backups':'Offline · '+backup.length+' HD photos');
     async function sync() {
-      if(!opts.feedUrl||syncing)return;
+      if(!shouldConnect||syncing)return;
       syncing=true;
+      const watchdog=setTimeout(()=>{
+        if(!online&&syncing)report('Google Drive response delayed · '+backup.length+' backups · V23');
+      },12000);
       try {
-        const live=await loadFeed(opts.feedUrl,14000);
+        const live=await getLivePhotos(opts);
         if(!live.length)throw new Error('Photo feed returned no image URLs');
-        // Crucial difference from V21: do not rewrite Drive links and reject
-        // the entire collection after probing every thumbnail. Only verify one
-        // usable image before switching to the full feed.
-        let usable=null;
-        const candidates=shuffle(live.slice()).slice(0,Math.min(10,live.length));
-        for (const photo of candidates) {
-          usable=await firstWorking(photo.fullCandidates(2048),4000);
-          if(usable)break;
+        // V22 tested up to ten photographs sequentially and could stall for
+        // minutes. Verify a few independent originals concurrently (<4 sec).
+        const samples=shuffle(live.slice()).slice(0,Math.min(3,live.length));
+        const checks=await Promise.all(samples.map(p=>firstWorking(
+          [p.url,p.fullCandidates(2048)[0]],4200)));
+        if(!checks.some(Boolean)){
+          const error=new Error('Google Drive returned links that the TV browser cannot display');
+          error.code='PHOTO_IMAGES_NOT_PUBLIC';
+          throw error;
         }
-        if(!usable)throw new Error('Feed has '+live.length+' photos but the image links cannot load');
         liveCount=live.length;online=true;
         show(live,'google-drive');
         report('Google Drive live · '+live.length+' distinct photos · shuffled');
+        debug.lastError=null;
       } catch(err) {
-        console.warn('[Memory Reel] Direct Google feed unavailable:',err);
-        if(online)report('Drive reconnecting · '+liveCount+' photos retained');
-        else report('Drive unavailable · showing '+backup.length+' saved HD photos');
-      } finally {syncing=false;}
+        console.warn('[Memory Reel V23] Gallery not available:',err);
+        const code=failureCode(err);
+        debug.lastError=code;
+        if(online)report('Drive reconnecting · '+liveCount+' photos retained · '+code);
+        else report('Drive unavailable · '+backup.length+' HD backups · '+code);
+      } finally {clearTimeout(watchdog);syncing=false;}
     }
-    if(opts.feedUrl) {
+    if(shouldConnect) {
       sync();
       refreshHandle=setInterval(sync,Math.max(30000,Number(opts.refreshEveryMs)||90000));
     }
@@ -329,5 +399,5 @@
       stop(){if(strip)strip.stop();if(slide)slide.stop();clearInterval(refreshHandle);}
     };
   }
-  window.StillOnFireReel={mount,parseFeed,createDeck,imageVariant};
+  window.StillOnFireReel={mount,parseFeed,createDeck,imageVariant,version:"23"};
 })();
