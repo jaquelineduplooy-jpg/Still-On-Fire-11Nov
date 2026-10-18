@@ -1,89 +1,54 @@
-STILL-ON-FIRE - V25 MEMORY REEL REPAIR
-======================================
+STILL-ON-FIRE V25 - NEW GOOGLE APPS SCRIPT CONNECTED
+==================================================
 
-WHAT WE CONFIRMED
-- The deployed /api/photos diagnostic returned GOOGLE_TIMEOUT (504).
-- The online TV reel therefore only has seven bundled copies, not the complete shared Google Drive gallery.
-- The seven bundled JPEG files are 1600 x 900; renaming or enlarging them does not add detail.
-- The Tankwa archive uses those seven backups too. Its good appearance does not confirm the feed connection.
+THIS PACKAGE ALREADY HAS YOUR NEW GOOGLE SCRIPT URL:
+https://script.google.com/macros/s/AKfycbyNyjiLE1D--fyi-83U1dTK1sbUGJDihUOBwxyPJ7T8PCTZRX0KfrPhEQnZZu5QU04Lwg/exec
 
-WHAT V25 CHANGES
-1. A replacement Google Apps Script creates an image index once and refreshes it every 5 minutes,
-   instead of scanning the entire Drive folder on every TV request (the main timeout risk).
-2. /api/photos loads that quick index; reuses a recent successful response if Google stalls.
-3. The TV caches its last working photo list in the same browser, including after a reload.
-4. Photos are shuffled without repeats within one complete cycle, and new gallery photos join future cycles.
-5. Full-size links are tried before previews; the browser checks real image pixels.
-6. No Drive files are moved, renamed, deleted, uploaded, or made public by this code.
-7. Existing Kosé website, RSVP, menu, design, images and Spotify remain as supplied.
+The new URL is pinned in api/photos.js so that an OLD Vercel
+SOFIRE_GOOGLE_PHOTO_FEED_URL variable cannot override it.
+You do not need to add or change a Vercel environment variable for this ZIP.
 
-IMPORTANT: ACTIVATION REQUIRES THE ACCOUNT THAT CAN OPEN THE PHOTO FOLDER
-======================================================================
-These Google steps MUST be done once. A website ZIP cannot authorize your Google account.
+DEPLOY
+======
+1. Unzip the package. Upload/commit ALL contents to the repository
+   that deploys https://still-on-fire.vercel.app, preserving the file layout.
+2. Ensure Vercel deploys the project root containing index.html,
+   vercel.json, api/photos.js, memory-reel-live/ and assets/.
+3. Redeploy Production and wait until the deployment is complete.
+4. Open https://still-on-fire.vercel.app/api/photos?config=1
+   and confirm jsonpFeedUrl equals the new URL above. This proves
+   that Vercel is running the updated website code.
+5. Open https://still-on-fire.vercel.app/api/photos?health=1
+   and look for ok=true and a positive count.
+6. Open https://still-on-fire.vercel.app/memory-reel-live/diagnostics.html
+   to verify the images themselves display and check their actual pixels.
+7. Open https://still-on-fire.vercel.app/memory-reel-live/index.html?v=25-new-feed
+   on the HD television and check the indicator for the FULL collection.
 
-A. Create a separate Google Apps Script project at https://script.google.com/.
-   Separate is safer because the Tankwa website shares the old script URL.
-B. Open the new project's Code.gs and replace its contents with scripts/Code.gs from this ZIP.
-   Save.
-C. In the top function selector, choose installGalleryRefresh, click Run and approve access.
-   This schedules read-only refreshes every 5 minutes.
-D. Choose refreshGallerySnapshot and click Run. Wait for completion.
-   It scans the shared folder and stores an index; this may take a little time.
-   If this function fails, open 'Executions' in Apps Script and check folder access.
-E. Deploy > New deployment > Web app. Execute as: Me.
-   Who has access: Anyone (anonymous, not signed-in-only). Deploy.
-   Copy the new URL ending in /exec.
-F. Open YOUR NEW /exec?health=1 URL in a private/incognito browser window.
-   Expected: {"ok":true,"version":"V25","count":<your full photo count>,...}
-   If you see SNAPSHOT_NOT_READY, rerun refreshGallerySnapshot. If you cannot see the
-   JSON without signing in, correct the web-app deployment permissions.
-G. Vercel > Still-On-Fire project > Settings > Environment Variables.
-   Set SOFIRE_GOOGLE_PHOTO_FEED_URL to the NEW Apps Script /exec URL.
-   Set for Production (and Preview if desired).
-H. Deploy the complete V25 website files from this ZIP to the same Vercel project.
-   Keep vercel.json, api/photos.js, assets/, memory-reel-live/, and index.html together.
-   Redeploy after adding the environment variable; config changes need a fresh deployment.
-I. Check these two live links after redeploy:
-   https://still-on-fire.vercel.app/api/photos?health=1
-   https://still-on-fire.vercel.app/memory-reel-live/diagnostics.html
-   API should say {"ok":true,"version":"V25","count":<full photo count>,...}.
-   Diagnostics should confirm a viewable photo at its native resolution.
-J. Refresh the TV reel:
-   https://still-on-fire.vercel.app/memory-reel-live/index.html?v=25
-   Its badge should say 'Google Drive live - [N] distinct photos - shuffled'.
+IF THE NEW SCRIPT IS NOT READY
+===========================
+Check the Google Apps Script deployment at the new link above with
+?health=1 appended. If it returns SNAPSHOT_NOT_READY, in Apps Script
+run installGalleryRefresh once and refreshGallerySnapshot once, then
+confirm the deployment is the current version and accessible to Anyone.
+If it returns a photo count but the reel cannot show the images,
+the photographs may be private to Google accounts; listing file IDs
+does NOT grant anonymous TV browsers permission to display them.
+Do not change personal/family photo sharing permissions without consent.
 
-IF THE FEED COUNT IS RIGHT BUT IMAGES DO NOT DISPLAY
-=====================================================
-The Apps Script executes with the owner's Drive access, but your television browser is anonymous.
-Private Drive photos may be listed but still not readable as images. The script deliberately DOES
-NOT change Google Drive sharing settings. For a publicly viewable reel, either grant the chosen
-photos public view access (ONLY if everyone pictured agrees), or bundle the original files locally.
+IMPORTANT LIMITATION
+====================
+The included 7 fallback pictures are 1600 x 900, NOT original HD assets.
+The best quality requires actual original images that the anonymous TV
+browser can retrieve from Google, or separately bundled originals.
+This ZIP cannot confirm the feed is live or improve missing image detail.
 
-FOR MAXIMUM TV QUALITY WITHOUT GOOGLE CONNECTION
-================================================
-The included seven backups are only 1600x900 JPEG files. They cannot be restored to original detail.
-If you have the original photo files, unzip/export them from Drive and use:
-  python3 scripts/import-originals.py /path/to/photos
-This copies originals without recompression to assets/originals and creates the manifest.
-Redeploy the entire folder. Be aware: all deployed originals are PUBLICLY accessible.
+WHAT IS PRESERVED
+=================
+- Current V25 Kosé design, text, RSVP, menus, Spotify, existing pictures.
+- HD/4K memory reel, proper no-repeat shuffle, cached gallery.
+- The original separate Tankwa website and its script remain unchanged.
 
-PRIVACY AND RELIABILITY
-=======================
-- Do NOT add Apps Script OAuth tokens or Google credentials to the website.
-- The new feed is read-only; the folder ID is already present in your previous scripts.
-- If the feed reconnects successfully at least once, the TV browser retains the last good URL
-  list even during subsequent outages. Browser cache may be lost if its data is cleared.
-- Server memory cache survives temporary Google failures on warm Vercel instances; not guaranteed
-  across cold starts. The separate Apps Script snapshot remains the durable source of truth.
-- A brand-new TV browser cannot display private/original Google photos without a working feed.
-- The site itself does not automatically deploy when a ZIP is generated.
-
-TESTS PERFORMED
-===============
-- 218-photo mock Apps Script index -> 219 on refresh, no Drive scans per HTTP request.
-- Vercel API tested for success, timeout and last-good response.
-- Browser tested at 1920x1080, 3840x2160 and 390x844.
-- 29-photo shuffled gallery tested for unique full cycle, original link selection and
-  recovery after an API timeout without returning to seven backups.
-- Real Google Drive authorization, anonymous file access and final published deployment
-  cannot be verified in this environment and require the above account-side steps.
+Note: scripts/Code.gs remains included as a reference only.
+You already created and deployed the NEW Google script, so you do not
+need to create another Google project for this ZIP.

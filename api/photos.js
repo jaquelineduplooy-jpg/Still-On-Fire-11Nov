@@ -2,8 +2,10 @@
    Serves a last-good gallery during temporary Google outages. Never modifies Drive.
 */
 'use strict';
-const DEFAULT_FEED='https://script.google.com/macros/s/AKfycbyaEMBcOb0-FisrU5Zm3yi4w9ptceioZ2Ng8PJJJq0G6KBGcEPNdmloexOXgNlugCHe/exec';
-const FEED=process.env.SOFIRE_GOOGLE_PHOTO_FEED_URL||DEFAULT_FEED;
+// New Google Apps Script deployment provided by the site owner.
+// Pinned for this package: an OLD SOFIRE_GOOGLE_PHOTO_FEED_URL variable in Vercel
+// must not silently override the working new deployment.
+const FEED='https://script.google.com/macros/s/AKfycbyNyjiLE1D--fyi-83U1dTK1sbUGJDihUOBwxyPJ7T8PCTZRX0KfrPhEQnZZu5QU04Lwg/exec';
 const FRESH_MS=3*60*1000;
 const MAX_STALE_MS=24*60*60*1000;
 const TIMEOUT_MS=16000;

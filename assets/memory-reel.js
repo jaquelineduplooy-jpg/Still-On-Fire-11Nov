@@ -377,8 +377,8 @@
       try{return await loadFeed(opts.feedUrl,20000);}catch(e){errors.push(e);}
     }
     let fallbackScript=opts.jsonpFeedUrl||null;
-    // The real URL is set in Vercel's SOFIRE_GOOGLE_PHOTO_FEED_URL,
-    // not hardcoded to the separate Tankwa site's older Apps Script.
+    // The Vercel API supplies the new Still-On-Fire Google feed URL;
+    // an older Vercel environment variable does not override it.
     if(!fallbackScript&&opts.feedUrl) {
       try {
         const configUrl=opts.feedUrl+(opts.feedUrl.includes('?')?'&':'?')+'config=1';

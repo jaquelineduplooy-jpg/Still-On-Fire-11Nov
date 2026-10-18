@@ -1,0 +1,4 @@
+Active Still-On-Fire Google photo feed:
+https://script.google.com/macros/s/AKfycbyNyjiLE1D--fyi-83U1dTK1sbUGJDihUOBwxyPJ7T8PCTZRX0KfrPhEQnZZu5QU04Lwg/exec
+
+Site endpoint: https://still-on-fire.vercel.app/api/photos?health=1
