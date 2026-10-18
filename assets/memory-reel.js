@@ -1,4 +1,4 @@
-/* Still On Fire | V23 - diagnosed Google photo relay, bounded checks + HD shuffle.
+/* Still On Fire | V25 - cached complete gallery, sequential retry and genuinely shuffled TV playback.
    The public Google Apps Script returns display-ready photo URLs. Keep those URLs:
    never replace them with drive.google.com/thumbnail links guessed from a Drive ID.
    Shuffle distinct photos without repeating until a complete deck has been shown.
@@ -6,7 +6,8 @@
 (function () {
   'use strict';
 
-  const storedPrefix = 'sofire-v22-last:';
+  const storedPrefix = 'sofire-v25-last:';
+  const galleryCacheKey = 'still-on-fire-v25-last-good-gallery';
   function shuffle(array) {
     for (let i = array.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -79,32 +80,76 @@
     return source;
   }
 
+  // Preserve every supplied photo source: a thumbnail URL is NOT an original.
+  // Google feeds often return both; the V23 relay silently discarded the original.
   function itemToPhoto(item) {
-    const obj = item && typeof item === 'object' && !Array.isArray(item) ? item : null;
-    if (obj && obj.mimeType && !/^image\//i.test(obj.mimeType)) return null;
-    let url = typeof item === 'string' ? item : obj && (
-      obj.url || obj.src || obj.downloadUrl || obj.imageUrl || obj.originalUrl ||
-      obj.fullSizeUrl || obj.thumbnailUrl || obj.thumbnailLink || obj.photoUrl ||
-      obj.webContentLink || obj.link
-    );
-    // Some feeds supply only a file ID; use a thumbnail URL in that case only.
-    if (!url && obj && /^[A-Za-z0-9_-]{20,}$/.test(String(obj.fileId || obj.id || '')))
-      url = 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(obj.fileId || obj.id) + '&sz=w2400';
-    if (typeof url !== 'string' || !url.trim()) return null;
-    url = url.trim();
-    if (!/^(?:https?:\/\/|\.\.?\/|assets\/|data:image\/(?:jpeg|png|webp|gif);base64,)/i.test(url)) return null;
-    const hash = obj && (obj.md5Checksum || obj.sha256Checksum);
-    const key = hash ? 'hash:' + hash : sourceKey(url, obj);
+    const obj=item && typeof item==='object' && !Array.isArray(item) ? item : null;
+    if(obj && obj.mimeType && !/^image\//i.test(obj.mimeType)) return null;
+    const valid = u => typeof u==='string' && /^(?:https?:\/\/|\.\.?\/|\/?assets\/|data:image\/(?:jpeg|png|webp|gif);base64,)/i.test(u.trim());
+    const unique = values => [...new Set(values.filter(valid).map(u=>u.trim()))];
+    const originals=obj ? unique([
+      obj.originalUrl,obj.fullSizeUrl,obj.originalImageUrl,obj.webContentLink,
+      obj.downloadUrl,obj.highResUrl,obj.fullUrl
+    ]) : [];
+    const previews=obj ? unique([
+      obj.url,obj.src,obj.imageUrl,obj.photoUrl,obj.thumbnailUrl,
+      obj.thumbnailLink,obj.previewUrl,obj.link
+    ]) : unique([item]);
+    // A file-ID-only response remains viewable through Google's thumbnail endpoint.
+    if(!originals.length && !previews.length && obj && /^[A-Za-z0-9_-]{20,}$/.test(String(obj.fileId || obj.id || '')))
+      previews.push('https://drive.google.com/thumbnail?id='+encodeURIComponent(obj.fileId||obj.id)+'&sz=w3200');
+    if(!originals.length && !previews.length) return null;
+    const first=originals[0]||previews[0];
+    const hash=obj && (obj.md5Checksum || obj.sha256Checksum);
+    const key=hash?'hash:'+hash:sourceKey(first,obj);
+    const uniqueLinks=links=>[...new Set(links)];
+    function variants(list,width) {
+      const result=[];
+      for(const u of list) {
+        const hi=imageVariant(u,width);
+        if(hi!==u)result.push(hi);
+        result.push(u);
+      }
+      return uniqueLinks(result);
+    }
     return {
-      key, url,
-      // Try a high-resolution photo FIRST; revert to the untouched working
-      // source URL if Google's image service does not support larger sizes.
+      key,url:first,
+      hasOriginal:originals.length>0,
+      rawOriginalUrls:originals,
       fullCandidates(width) {
-        const preferred = width >= 2500 ? [3200,2400,1600] : [2400,1600];
-        return [...new Set(preferred.map(w => imageVariant(url,w)).concat(url))];
+        // The first group is for the original file, the second for previews.
+        // Do NOT allow a 640px preview to win a race against a 4000px original.
+        const target = width>=3000?4096:Math.max(2400,Math.round(width));
+        return {original:variants(originals,target),preview:variants(previews,target)};
       },
-      thumbCandidates() { return [...new Set([imageVariant(url,1100), url])]; }
+      thumbCandidates() { return uniqueLinks(variants(previews.length?previews:originals,1100).concat(originals)); },
+      sourceItem:obj ? {
+        id:obj.id||obj.fileId||obj.driveId,
+        url:previews[0]||originals[0],
+        originalUrl:obj.originalUrl||obj.originalImageUrl,
+        fullSizeUrl:obj.fullSizeUrl||obj.fullUrl,
+        highResUrl:obj.highResUrl,
+        downloadUrl:obj.downloadUrl,
+        webContentLink:obj.webContentLink,
+        mimeType:obj.mimeType
+      } : item
     };
+  }
+
+  async function bestForHero(photo,width,timeoutMs) {
+    const sources=photo.fullCandidates(width);
+    // Prefer actual originals; if unavailable try their full-size preview links.
+    let original=null;
+    if(sources.original.length) {
+      original=await firstWorking(sources.original.slice(0,4),timeoutMs);
+      // The original wins when it has real display-sized native pixels.
+      if(original && original.width>=1600)return original;
+    }
+    const preview=await firstWorking(sources.preview.slice(0,4),timeoutMs);
+    if(preview && (!original || preview.width>original.width))return preview;
+    if(original)return original;
+    // A few feeds provide more fallback URLs beyond the first batch.
+    return firstWorking(sources.original.slice(4,7).concat(sources.preview.slice(4,7)),Math.min(timeoutMs,2400));
   }
 
   function parseFeed(json) {
@@ -170,7 +215,7 @@
       for (let i=0;i<photos.length && running;i++) {
         const candidate = deck.next();
         if (!candidate) break;
-        const result = await firstWorking(candidate.fullCandidates(want),7500);
+        const result = await bestForHero(candidate,want,4800);
         if (!running) return;
         if (result) { loaded=result; photo=candidate; break; }
       }
@@ -179,6 +224,10 @@
         img.dataset.photoKey = photo.key;
         img.dataset.photoWidth = String(loaded.width);
         img.dataset.photoHeight = String(loaded.height);
+        // Never upscale a low-resolution file past its true native pixel width on a 4K TV.
+        img.style.maxWidth = loaded.width + 'px';
+        img.style.marginInline = 'auto';
+        img.dataset.sourceQuality = loaded.width>=3000?'4K candidate':loaded.width>=1920?'HD candidate':'below HD';
         img.style.visibility = 'visible';
         if (typeof opts.onHeroChange === 'function') opts.onHeroChange(photo.key);
       }
@@ -273,7 +322,7 @@
       }
       const images=parseFeed(json);
       if(!images.length) {const error=new Error('Photo feed contains no valid image URLs');error.code='EMPTY_PHOTO_FEED';throw error;}
-      return images;
+      return {photos:images,mode:(json&&json.mode)||'live',warningCode:(json&&json.warningCode)||null};
     } finally { clearTimeout(alarm); }
   }
 
@@ -294,7 +343,7 @@
       }
       window[callback]=function(payload){
         const photos=parseFeed(payload);
-        if(photos.length)done(photos,null);
+        if(photos.length)done({photos,mode:'jsonp'},null);
         else done(null,new Error('JSONP returned no photographs'));
       };
       tag.onerror=()=>done(null,new Error('Google script tag rejected'));
@@ -319,12 +368,46 @@
     });
   }
 
+  // The V24 client launched THREE simultaneous requests into one slow Google
+  // Apps Script. This amplified Drive scanning and often made timeouts worse.
+  // Use one Vercel relay request; fall back to read-only JSONP only after failure.
   async function getLivePhotos(opts) {
-    const routes=[];
-    if(opts.feedUrl)routes.push(()=>loadFeed(opts.feedUrl,18000));
-    if(opts.directFeedUrl)routes.push(()=>loadFeed(opts.directFeedUrl,8500));
-    if(opts.jsonpFeedUrl)routes.push(()=>loadJsonp(opts.jsonpFeedUrl,8500));
-    return firstAvailable(routes);
+    const errors=[];
+    if(opts.feedUrl) {
+      try{return await loadFeed(opts.feedUrl,20000);}catch(e){errors.push(e);}
+    }
+    let fallbackScript=opts.jsonpFeedUrl||null;
+    // The real URL is set in Vercel's SOFIRE_GOOGLE_PHOTO_FEED_URL,
+    // not hardcoded to the separate Tankwa site's older Apps Script.
+    if(!fallbackScript&&opts.feedUrl) {
+      try {
+        const configUrl=opts.feedUrl+(opts.feedUrl.includes('?')?'&':'?')+'config=1';
+        const response=await fetch(configUrl,{cache:'no-store'});
+        if(response.ok){const config=await response.json();fallbackScript=config.jsonpFeedUrl||null;}
+      }catch(_){ /* relay may be fully offline */ }
+    }
+    if(fallbackScript) {
+      try{return await loadJsonp(fallbackScript,13000);}catch(e){errors.push(e);}
+    }
+    if(!errors.length)throw new Error('No photo feed configured');
+    const exception=new Error('Photo feed could not be reached');
+    exception.causes=errors;
+    throw exception;
+  }
+
+  function readLastGood() {
+    try {
+      const saved=JSON.parse(localStorage.getItem(galleryCacheKey)||'null');
+      if(!saved||!Array.isArray(saved.items)||Date.now()-saved.time>90*24*60*60*1000)return null;
+      const photos=parseFeed(saved.items);
+      return photos.length>0?photos:null;
+    }catch(_){return null;}
+  }
+  function writeLastGood(photos) {
+    try {
+      const items=photos.slice(0,2500).map(p=>p.sourceItem);
+      localStorage.setItem(galleryCacheKey,JSON.stringify({time:Date.now(),items}));
+    }catch(_){/* localStorage disabled/full; animation still works */}
   }
 
   function failureCode(err) {
@@ -340,7 +423,7 @@
     const status=opts.statusId?document.getElementById(opts.statusId):null;
     const backup=parseFeed(opts.fallback||[]);
     if (!backup.length) throw new Error('No backup images supplied');
-    let activeSet='', liveCount=0, strip=null, slide=null, syncing=false, online=false;
+    let activeSet='', liveCount=0, strip=null, slide=null, syncing=false, online=false, localCount=0;
     let refreshHandle=0;
     const debug={source:'saved',photos:backup.length,changes:[]};
     function report(str) { if (status) status.textContent=str; }
@@ -354,8 +437,32 @@
       slide=buildHero(hero,photos,Object.assign({},opts,{onHeroChange:key=>{debug.changes.push(key);if(debug.changes.length>300)debug.changes.shift();}}));
     }
     show(backup,'saved');
+    let rememberedCount=0;
+    // Last-known-good manifest survives a temporary Google or Vercel outage,
+    // including a TV browser restart. No photos are uploaded from this browser.
+    const remembered=opts.feedUrl?readLastGood():null;
+    if(remembered && remembered.length) {
+      rememberedCount=remembered.length;
+      show(remembered,'last-known-good');
+    }
+    // A locally bundled copy of original photos works even when Drive is down.
+    // The manifest is empty until the owner supplies true original image files.
+    async function localGallery() {
+      if(!opts.originalsManifestUrl)return;
+      try {
+        const response=await fetch(opts.originalsManifestUrl,{cache:'no-store'});
+        if(!response.ok)return;
+        const photos=parseFeed(await response.json());
+        if(photos.length && !online) {
+          localCount=photos.length;
+          show(photos,'local-originals');
+          report('Original photo library · '+photos.length+' photos · shuffled');
+        }
+      }catch (_) { /* Optional pack: never block the reel */ }
+    }
+    localGallery();
     const shouldConnect=!!(opts.feedUrl||opts.directFeedUrl||opts.jsonpFeedUrl);
-    report(shouldConnect?'Connecting to Google Drive… · '+backup.length+' emergency backups':'Offline · '+backup.length+' HD photos');
+    report(shouldConnect?(rememberedCount?'Saved gallery · '+rememberedCount+' photos · reconnecting':'Connecting to Google Drive… · '+backup.length+' saved photos'):'Offline · '+backup.length+' saved photos');
     async function sync() {
       if(!shouldConnect||syncing)return;
       syncing=true;
@@ -363,28 +470,31 @@
         if(!online&&syncing)report('Google Drive response delayed · '+backup.length+' backups · V23');
       },12000);
       try {
-        const live=await getLivePhotos(opts);
+        const feed=await getLivePhotos(opts);
+        const live=feed.photos;
         if(!live.length)throw new Error('Photo feed returned no image URLs');
         // V22 tested up to ten photographs sequentially and could stall for
         // minutes. Verify a few independent originals concurrently (<4 sec).
         const samples=shuffle(live.slice()).slice(0,Math.min(3,live.length));
-        const checks=await Promise.all(samples.map(p=>firstWorking(
-          [p.url,p.fullCandidates(2048)[0]],4200)));
+        const checks=await Promise.all(samples.map(p=>bestForHero(p,2048,4200)));
         if(!checks.some(Boolean)){
           const error=new Error('Google Drive returned links that the TV browser cannot display');
           error.code='PHOTO_IMAGES_NOT_PUBLIC';
           throw error;
         }
         liveCount=live.length;online=true;
-        show(live,'google-drive');
-        report('Google Drive live · '+live.length+' distinct photos · shuffled');
-        debug.lastError=null;
+        writeLastGood(live);
+        show(live,feed.mode==='cached'?'cached':'google-drive');
+        report((feed.mode==='cached'?'Last synced Drive gallery':'Google Drive live')+' · '+live.length+' distinct photos · shuffled');
+        debug.lastError=feed.warningCode||null;
       } catch(err) {
-        console.warn('[Memory Reel V23] Gallery not available:',err);
+        console.warn('[Memory Reel V24] Gallery not available:',err);
         const code=failureCode(err);
         debug.lastError=code;
         if(online)report('Drive reconnecting · '+liveCount+' photos retained · '+code);
-        else report('Drive unavailable · '+backup.length+' HD backups · '+code);
+        else if(rememberedCount)report('Saved Drive gallery · '+rememberedCount+' photos · retrying · '+code);
+        else if(localCount)report('Original photo library · '+localCount+' photos · Drive '+code);
+        else report('Drive unavailable · '+backup.length+' saved photos · '+code);
       } finally {clearTimeout(watchdog);syncing=false;}
     }
     if(shouldConnect) {
@@ -399,5 +509,5 @@
       stop(){if(strip)strip.stop();if(slide)slide.stop();clearInterval(refreshHandle);}
     };
   }
-  window.StillOnFireReel={mount,parseFeed,createDeck,imageVariant,version:"23"};
+  window.StillOnFireReel={mount,parseFeed,createDeck,imageVariant,version:"25"};
 })();

@@ -407,6 +407,15 @@
     .reel-stat span { font-size:1.1rem; }
     .bottom { font-size:1.3rem; }
   }
+
+  /* V24 mobile: prevent a single wide filmstrip or heading setting grid min-content width. */
+  @media (max-width:980px) {
+    .screen { min-width:0 !important; width:100% !important; grid-template-columns:minmax(0,1fr) !important; }
+    .top, .hero-stage { grid-template-columns:minmax(0,1fr) !important; min-width:0 !important; width:100% !important; }
+    .top > *, .hero-stage > *, .reel-panel, .reel-copy { min-width:0 !important; max-width:100%; }
+    .bottom > * { min-width:0 !important; max-width:100%; }
+    .badge { white-space:normal !important; max-width:100% !important; width:auto !important; overflow-wrap:anywhere; }
+  }
 </style>
 </head>
 <body>
@@ -452,19 +461,19 @@
     <div class="badge" id="reelSyncStatus" role="status" aria-live="polite">Saved memories · connecting</div>
   </div>
 </div>
-<script src="../assets/memory-reel.js"></script>
+<script src="../assets/memory-reel.js?v=25"></script>
 <script>
   StillOnFireReel.mount({
     trackId: "strip",
     heroId: "heroImage",
     statusId: "reelSyncStatus",
     frameClass: "frame",
-    key: "still-on-fire-live-hd-v23",
-    fallback: ["../assets/photo_01-hd.jpg", "../assets/photo_02-hd.jpg", "../assets/photo_06-hd.jpg", "../assets/photo_07-hd.jpg", "../assets/photo_08-hd.jpg", "../assets/photo_09-hd.jpg", "../assets/photo_10-hd.jpg"],
+    key: "still-on-fire-live-quality-v25",
+    fallback: ["../assets/photo_01.jpg", "../assets/photo_02.jpg", "../assets/photo_06.jpg", "../assets/photo_07.jpg", "../assets/photo_08.jpg", "../assets/photo_09.jpg", "../assets/photo_10.jpg"],
     feedUrl: "/api/photos",
-    directFeedUrl: "https://script.google.com/macros/s/AKfycbyaEMBcOb0-FisrU5Zm3yi4w9ptceioZ2Ng8PJJJq0G6KBGcEPNdmloexOXgNlugCHe/exec",
-    jsonpFeedUrl: "https://script.google.com/macros/s/AKfycbyaEMBcOb0-FisrU5Zm3yi4w9ptceioZ2Ng8PJJJq0G6KBGcEPNdmloexOXgNlugCHe/exec",
-    refreshEveryMs: 90000,
+
+    originalsManifestUrl: "../assets/full-resolution-photos.json",
+    refreshEveryMs: 180000,
     speed: 19,
     pauseOnHover: false,
     heroInterval: 7800

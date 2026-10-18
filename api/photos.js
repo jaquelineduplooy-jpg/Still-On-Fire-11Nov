@@ -1,96 +1,99 @@
-/* Still-On-Fire V23: CORS-safe, read-only Google Apps Script photo-feed relay.
-   /api/photos?health=1 returns a diagnostic WITHOUT listing family photo URLs.
-   Vercel environment variable optional: SOFIRE_GOOGLE_PHOTO_FEED_URL.
+/* Still-On-Fire V25: cached, read-only Google Apps Script photo manifest relay.
+   Serves a last-good gallery during temporary Google outages. Never modifies Drive.
 */
 'use strict';
 const DEFAULT_FEED='https://script.google.com/macros/s/AKfycbyaEMBcOb0-FisrU5Zm3yi4w9ptceioZ2Ng8PJJJq0G6KBGcEPNdmloexOXgNlugCHe/exec';
 const FEED=process.env.SOFIRE_GOOGLE_PHOTO_FEED_URL||DEFAULT_FEED;
-const TIMEOUT_MS=8200;
-function httpError(code,message,status,upstreamStatus) {
-  const e=new Error(message);
-  e.code=code; e.httpStatus=status||502; e.upstreamStatus=upstreamStatus||null;
-  return e;
+const FRESH_MS=3*60*1000;
+const MAX_STALE_MS=24*60*60*1000;
+const TIMEOUT_MS=16000;
+let cache=null;
+let pending=null;
+function err(code,status,message){const e=new Error(message||code);e.code=code;e.status=status||502;return e;}
+function validFeed(value){try{const url=new URL(value);return url.protocol==='https:'&&url.hostname==='script.google.com'&&/^\/macros\/s\/[^/]+\/exec$/.test(url.pathname);}catch(_){return false;}}
+function extract(data){
+ if(Array.isArray(data))return data;
+ if(!data||typeof data!=='object')throw err('GOOGLE_NOT_JSON',502);
+ if(data.ok===false||data.error)throw err('GOOGLE_SCRIPT_ERROR',502,String(data.error||'Unknown script error').slice(0,120));
+ const a=[data.images,data.photos,data.items,data.files,data.results,data.data,data.data&&data.data.images].find(Array.isArray);
+ if(!a)throw err('GOOGLE_NO_PHOTO_ARRAY',502);
+ return a;
 }
-function sourceIsValid(input) {
-  try {const u=new URL(input);return u.protocol==='https:' && u.hostname==='script.google.com' && /^\/macros\/s\/[^/]+\/exec$/.test(u.pathname);}
-  catch (_) {return false;}
+function normalize(data){
+ const out=new Map();
+ for(const entry of extract(data)){
+  const p=entry&&typeof entry==='object'?entry:null;
+  if(p&&p.mimeType&&!/^image\//i.test(p.mimeType))continue;
+  const url=typeof entry==='string'?entry:p&&(p.url||p.src||p.thumbnailUrl||p.originalUrl||p.fullSizeUrl||p.downloadUrl);
+  if(typeof url!=='string'||!url.startsWith('https://'))continue;
+  const id=p&&(p.id||p.fileId||p.driveId);
+  const key=id?String(id):url.replace(/([?&](?:sz|w|width)=[^&]+)|=w\d+$/g,'');
+  if(out.has(key))continue;
+  out.set(key,{id:id||undefined,url,
+    mimeType:p&&p.mimeType||undefined,
+    originalUrl:p&&(p.originalUrl||p.originalImageUrl)||undefined,
+    fullSizeUrl:p&&(p.fullSizeUrl||p.fullUrl)||undefined,
+    highResUrl:p&&(p.highResUrl||p.highQualityUrl)||undefined,
+    downloadUrl:p&&p.downloadUrl||undefined,
+    webContentLink:p&&p.webContentLink||undefined,
+    thumbnailUrl:p&&p.thumbnailUrl||undefined});
+  if(out.size>=2500)break;
+ }
+ if(!out.size)throw err('GOOGLE_EMPTY_GALLERY',502);
+ return [...out.values()];
 }
-function entries(data){
-  if(Array.isArray(data))return data;
-  if(!data || typeof data!=='object')return null;
-  if(data.error)throw httpError('SCRIPT_ERROR',String(data.error).slice(0,140),502);
-  return [data.images,data.photos,data.items,data.files,data.results,data.data,
-    data.data&&data.data.images,data.data&&data.data.photos,data.data&&data.data.items]
-    .find(Array.isArray)||null;
+async function fetchGallery(){
+ const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),TIMEOUT_MS);
+ try {
+  const response=await fetch(FEED,{redirect:'follow',cache:'no-store',signal:controller.signal,headers:{Accept:'application/json'}});
+  if(!response.ok)throw err(response.status===401||response.status===403?'GOOGLE_ACCESS_DENIED':`GOOGLE_HTTP_${response.status}`,502);
+  const body=await response.text();
+  if(/^\s*(?:<!doctype|<html)/i.test(body))throw err('GOOGLE_LOGIN_OR_HTML',502);
+  let json;try{json=JSON.parse(body);}catch(_){throw err('GOOGLE_INVALID_JSON',502);}
+  const photos=normalize(json);
+  cache={photos,fetchedAt:Date.now(),updatedAt:json&&json.updatedAt||null};
+  return cache;
+ }catch(e){
+  if(e.name==='AbortError')throw err('GOOGLE_TIMEOUT',504);
+  if(e.code)throw e;
+  throw err('GOOGLE_NETWORK_ERROR',502);
+ }finally{clearTimeout(timeout);}
 }
-function normalize(data) {
-  const list=entries(data);
-  if(!list)throw httpError('UNSUPPORTED_FEED','Feed JSON does not contain a photo array',502);
-  const found=new Map();
-  for(const item of list){
-    const entry=(item&&typeof item==='object')?item:null;
-    if(entry&&entry.mimeType&&!/^image\//.test(entry.mimeType))continue;
-    const u=typeof item==='string'?item:entry&&(entry.url||entry.src||entry.downloadUrl||entry.imageUrl||entry.originalUrl||entry.fullSizeUrl||entry.thumbnailUrl||entry.thumbnailLink||entry.photoUrl||entry.webContentLink);
-    if(typeof u!=='string'||!/^https:\/\//i.test(u))continue;
-    const fileId=entry&&(entry.fileId||entry.id||entry.driveId)||null;
-    const key=fileId?String(fileId):u.replace(/([?&](?:sz|w|cache|_=)[^&]+)|=[ws]\d+$/g,'');
-    if(!found.has(key))found.set(key,{id:fileId||undefined,url:u,mimeType:entry&&entry.mimeType||undefined});
-    if(found.size>=3000)break;
-  }
-  if(!found.size)throw httpError('NO_USABLE_PHOTOS','Feed returned no usable HTTPS image URLs',502);
-  return Array.from(found.values());
+function load(){
+ if(cache&&Date.now()-cache.fetchedAt<FRESH_MS)return Promise.resolve({entry:cache,mode:'live'});
+ if(!pending)pending=fetchGallery().finally(()=>{pending=null;});
+ return pending.then(entry=>({entry,mode:'live'}),e=>{
+  if(cache&&Date.now()-cache.fetchedAt<MAX_STALE_MS)return {entry:cache,mode:'cached',errorCode:e.code};
+  throw e;
+ });
 }
-async function fetchOnce(){
-  const controller=new AbortController(); const alarm=setTimeout(()=>controller.abort(),TIMEOUT_MS);
-  try {
-    const response=await fetch(FEED,{redirect:'follow',signal:controller.signal,headers:{Accept:'application/json,text/plain;q=0.9,*/*;q=0.5'},cache:'no-store'});
-    if(!response.ok){
-      const status=response.status;
-      const code=status===401||status===403?'GOOGLE_ACCESS_DENIED':status===404?'GOOGLE_DEPLOYMENT_NOT_FOUND':status===429?'GOOGLE_RATE_LIMITED':'GOOGLE_HTTP_'+status;
-      throw httpError(code,'Google Apps Script returned HTTP '+status,502,status);
-    }
-    const raw=await response.text();
-    if(/^\s*<!doctype html|^\s*<html[\s>]/i.test(raw))throw httpError('GOOGLE_RETURNED_HTML','Google served an HTML/login page, not a public JSON photo feed',502);
-    let json;try{json=JSON.parse(raw);}catch(_){throw httpError('GOOGLE_NOT_JSON','Google Apps Script response was not JSON',502);}
-    return normalize(json);
-  } catch(e){
-    if(e.name==='AbortError')throw httpError('GOOGLE_TIMEOUT','Timed out waiting for Google Apps Script',504);
-    if(!e.code)throw httpError('GOOGLE_NETWORK',String(e.message||'Network error').slice(0,140),502);
-    throw e;
-  } finally{clearTimeout(alarm);}
-}
-function hint(code){
-  const h={GOOGLE_ACCESS_DENIED:'Deploy Google Apps Script as: Execute as Me; Who has access: Anyone (including visitors not signed in).',
-    GOOGLE_DEPLOYMENT_NOT_FOUND:'Apps Script deployment URL is invalid, expired, or its redirected response returned 404; redeploy and update SOFIRE_GOOGLE_PHOTO_FEED_URL.',
-    GOOGLE_RETURNED_HTML:'Apps Script is serving a sign-in page; verify anonymous web-app access and correct /exec URL.',
-    GOOGLE_NOT_JSON:'The Apps Script must return JSON (or use the Code.gs included in the ZIP).',
-    GOOGLE_TIMEOUT:'Apps Script timed out. Check Apps Script Executions and retry.',
-    GOOGLE_NETWORK:'Vercel could not reach Google Apps Script; check deployment URL and Apps Script Executions.',
-    SCRIPT_ERROR:'The Google script reported an error; check its folder ID and owner Drive access.',
-    NO_USABLE_PHOTOS:'Check that the Google Drive folder contains photos and the script returns usable image URLs.',
-    UNSUPPORTED_FEED:'The script must return an images array containing URLs.'};
-  return h[code]||'Check the Google Apps Script deployment and folder access. Visit /api/photos?health=1 for the failure code.';
-}
+function send(res,status,data){res.status(status).json(data);}
 async function handler(req,res){
-  res.setHeader('Content-Type','application/json; charset=utf-8');
-  res.setHeader('X-Content-Type-Options','nosniff');
+ res.setHeader('Content-Type','application/json; charset=utf-8');
+ res.setHeader('X-Content-Type-Options','nosniff');
+ // Keep cached photos for the next refresh, but return JSON before platform timeout.
+ res.setHeader('Cache-Control','public, max-age=0, s-maxage=45, stale-while-revalidate=60');
+ if(req.method!=='GET'){res.setHeader('Allow','GET');return send(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'});}
+ if(!validFeed(FEED))return send(res,500,{ok:false,code:'INVALID_FEED_URL'});
+ // Browser can discover the PUBLIC read-only JSONP endpoint for a last-resort
+ // bypass of the relay. No credentials or private configuration are exposed.
+ if(req.query&&String(req.query.config||'')==='1')return send(res,200,{ok:true,jsonpFeedUrl:FEED});
+ try{
+  const {entry,mode,errorCode}=await load();
+  const data={ok:true,version:'V25',mode,count:entry.photos.length,updatedAt:entry.updatedAt,cacheAgeSeconds:Math.round((Date.now()-entry.fetchedAt)/1000)};
+  if(errorCode)data.warningCode=errorCode;
+  if(req.query&&String(req.query.health||'')==='1')return send(res,200,data);
+  return send(res,200,{...data,images:entry.photos});
+ }catch(e){
+  const code=e.code||'GOOGLE_FEED_ERROR';
+  console.error('[Still-On-Fire photo feed]',code,e.message);
   res.setHeader('Cache-Control','no-store');
-  if(req.method!=='GET'){res.setHeader('Allow','GET');return res.status(405).json({ok:false,code:'METHOD_NOT_ALLOWED'});}
-  if(!sourceIsValid(FEED))return res.status(500).json({ok:false,code:'FEED_CONFIG_INVALID',hint:'Set SOFIRE_GOOGLE_PHOTO_FEED_URL to a Google Apps Script /exec deployment URL.'});
-  let lastErr=null;
-  for(let attempt=0;attempt<2;attempt++) {
-    try {
-      const photos=await fetchOnce();
-      res.setHeader('Cache-Control','public, max-age=0, s-maxage=35, stale-while-revalidate=30');
-      if(req.query&&String(req.query.health||'')==='1')return res.status(200).json({ok:true,version:'V23',source:'Google Apps Script',photoCount:photos.length});
-      return res.status(200).json({ok:true,version:'V23',source:'Google Apps Script',count:photos.length,images:photos});
-    }catch(e){lastErr=e; const transient=['GOOGLE_TIMEOUT','GOOGLE_NETWORK','GOOGLE_DEPLOYMENT_NOT_FOUND','GOOGLE_RATE_LIMITED','GOOGLE_HTTP_500','GOOGLE_HTTP_502','GOOGLE_HTTP_503'];
-      if(attempt===0&&transient.includes(e.code))await new Promise(resolve=>setTimeout(resolve,350));else break;
-    }
-  }
-  const code=lastErr&&lastErr.code||'UNKNOWN_FEED_ERROR';
-  console.error('[Still-On-Fire V23 photos]',code,lastErr&&lastErr.message);
-  return res.status(lastErr&&lastErr.httpStatus||502).json({ok:false,version:'V23',code,upstreamStatus:lastErr&&lastErr.upstreamStatus||undefined,hint:hint(code)});
+  return send(res,e.status||502,{ok:false,version:'V25',code,
+   hint:code==='GOOGLE_TIMEOUT'?'Google Apps Script has not returned its photo index. Install the V25 prebuilt snapshot script, refresh once and redeploy it.':
+        code==='GOOGLE_SCRIPT_ERROR'?'The Apps Script has not initialized its snapshot or cannot access the folder. Check Apps Script Executions.':
+        code==='GOOGLE_ACCESS_DENIED'?'Deploy Apps Script as Me, accessible to Anyone, and verify folder permissions.':
+        'Check the Google Apps Script deployment and shared folder permissions.'});
+ }
 }
 module.exports=handler;
-module.exports._test={normalize,entries,sourceIsValid,hint};
+module.exports._test={normalize,extract,validFeed,fetchGallery,handler};

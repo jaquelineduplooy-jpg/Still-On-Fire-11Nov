@@ -1,0 +1,5 @@
+This V25 package is based on Still-On-Fire-V24-ORIGINAL-QUALITY-REEL.
+Only the memory-reel scripts, Google photo feed/API, Vercel function configuration,
+photo diagnostics, and version references changed. All Kosé images, site copy,
+Spotify links, and other site sections were preserved byte-for-byte except the
+reel initialization references in index.html.
