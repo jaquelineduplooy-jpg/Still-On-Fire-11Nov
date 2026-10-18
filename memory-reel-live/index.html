@@ -390,6 +390,23 @@
     body { height:auto !important; min-height:100svh !important; overflow:visible !important; }
     .screen { height:auto !important; min-height:100svh !important; overflow:visible !important; }
   }
+
+  /* V21 HDTV: no blurred pseudo-images, CSS effects, zooming, or face-cropping. */
+  .main-photo::before, .main-photo::after, .frame::before { display:none !important; content:none !important; }
+  .main-photo img { object-fit:contain !important; object-position:center !important; padding:0 !important; filter:none !important; transform:none !important; animation:none !important; image-rendering:auto !important; }
+  .frame img { object-fit:contain !important; object-position:center !important; filter:none !important; transform:none !important; image-rendering:auto !important; }
+  /* Native 4K browser windows retain comfortably readable framing on large TVs. */
+  @media (min-width:2400px) and (min-height:1200px) {
+    .screen { padding:36px 48px; gap:24px; }
+    .hero-stage { grid-template-columns:minmax(0,1.07fr) minmax(0,.93fr); gap:30px; }
+    .reel-panel { grid-template-rows:auto 455px auto; gap:30px; padding:32px; }
+    .strip-wrap { height:455px; min-height:455px; max-height:455px; }
+    .frame { width:470px; height:326px; flex-basis:470px; }
+    .reel-copy p { font-size:clamp(1.2rem,1.25vw,1.65rem); }
+    .reel-stat strong { font-size:1.35rem; }
+    .reel-stat span { font-size:1.1rem; }
+    .bottom { font-size:1.3rem; }
+  }
 </style>
 </head>
 <body>
@@ -411,7 +428,7 @@
 
   <div class="hero-stage">
     <div class="main-photo" id="mainPhotoWrap">
-      <img id="heroImage" src="../assets/photo_01.jpg" alt="Celebration memory" />
+      <img id="heroImage" alt="Celebration memory" decoding="async" fetchpriority="high" />
     </div>
 
     <section class="reel-panel" aria-label="Rolling memory reel">
@@ -444,10 +461,12 @@
     frameClass: "frame",
     key: "still-on-fire-live",
     fallback: ["../assets/photo_01.jpg", "../assets/photo_02.jpg", "../assets/photo_06.jpg", "../assets/photo_07.jpg", "../assets/photo_08.jpg", "../assets/photo_09.jpg", "../assets/photo_10.jpg"],
-    feedUrl: "https://script.google.com/macros/s/AKfycbyaEMBcOb0-FisrU5Zm3yi4w9ptceioZ2Ng8PJJJq0G6KBGcEPNdmloexOXgNlugCHe/exec",
+    feedUrl: "/api/photos",
+    feedFallbackUrl: "https://script.google.com/macros/s/AKfycbyaEMBcOb0-FisrU5Zm3yi4w9ptceioZ2Ng8PJJJq0G6KBGcEPNdmloexOXgNlugCHe/exec",
     refreshEveryMs: 90000,
     speed: 19,
-    heroInterval: 5600
+    pauseOnHover: false,
+    heroInterval: 7800
   });
 </script>
 </body>
