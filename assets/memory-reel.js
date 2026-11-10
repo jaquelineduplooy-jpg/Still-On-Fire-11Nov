@@ -253,8 +253,8 @@
     return { stop(){ running=false;clearTimeout(timer); } };
   }
 
-  // V30: display exactly the photo entering from the right-hand edge of
-  // the moving strip. Uses the SAME original-first HD image loader as V25.
+  // V32: display the photo that has just left the moving strip on its LEFT.
+  // Uses the SAME original-first HD image loader as V25.
   // Pause freezes only the main photo; the filmstrip and Google feed keep running.
   function buildIncomingHero(img, opts) {
     if (!img) return { show(){}, pause(){}, resume(){}, stop(){} };
@@ -299,7 +299,7 @@
     const deck = opts.ordered ? createOrderedDeck(photos) : createDeck(photos,opts.key+':strip');
     let running=true, frame=0, last=0, x=0, nextPhotoId=null;
     let stripKeys=[];
-    let incomingFrame=null, stepWidth=0;
+    let stepWidth=0;
     const speed = Number(opts.speed) || 22;
     function makeFrame(photo) {
       const box=document.createElement('div');
@@ -337,29 +337,16 @@
       const gap=parseFloat(getComputedStyle(track).gap)||0;
       stepWidth=frameWidth+gap;
       const total=Math.ceil(parent.clientWidth/stepWidth)+5;
-      track.replaceChildren();stripKeys=[];x=0;last=0;incomingFrame=null;
+      track.replaceChildren();stripKeys=[];x=0;last=0;
+      if (opts.ordered && typeof opts.onEnteringPhoto === 'function') {
+        // The main photo is the one that has JUST left the moving filmstrip.
+        // Seed it with the first photo, then line up every subsequent photo
+        // immediately to its right, in the exact supplied order.
+        const firstMain = deck.next();
+        if (firstMain) opts.onEnteringPhoto(firstMain);
+      }
       for(let i=0;i<Math.max(7,total);i++)appendOne();
       track.style.transform='translate3d(0px,0,0)';
-      showIncoming();
-    }
-    function showIncoming() {
-      if (typeof opts.onEnteringPhoto !== 'function' || !stepWidth) return;
-      // V31: follow the photo immediately LEFT of the rightmost visible tile.
-      // V30 selected the newest tile at the far-right edge, visually skipping
-      // the adjacent memory already in the strip. Require at least 35% of a
-      // tile to be visible before counting it as the rightmost photo; then
-      // display its LEFT neighbour. Keep the strip's order, speed, feed, and
-      // full-resolution image loader exactly as they were.
-      const frameWidth=stepWidth-(parseFloat(getComputedStyle(track).gap)||0);
-      const minVisible=Math.max(1,frameWidth*0.35);
-      const rightmost=Math.max(0,Math.min(track.children.length-1,
-        Math.floor((parent.clientWidth-x-minVisible)/stepWidth)));
-      const index=Math.max(0,rightmost-1);
-      const frame=track.children[index];
-      if (frame && frame !== incomingFrame) {
-        incomingFrame=frame;
-        opts.onEnteringPhoto(frame._reelPhoto);
-      }
     }
     function tick(now) {
       if (!running) return;
@@ -370,13 +357,19 @@
         const gap=parseFloat(getComputedStyle(track).gap)||0;
         const distance=first.getBoundingClientRect().width+gap;
         while (distance && x<=-distance && track.firstElementChild) {
+          // The LEFTMOST thumbnail is physically next to the main photo.
+          // As it leaves the filmstrip, make THAT same photograph the main
+          // photo. Never jump to the middle or rightmost visible thumbnail.
+          const leaving = track.firstElementChild;
           x+=distance;
-          track.firstElementChild.remove();
+          leaving.remove();
           stripKeys.shift();
           appendOne();
+          if (opts.ordered && typeof opts.onEnteringPhoto === 'function') {
+            opts.onEnteringPhoto(leaving._reelPhoto);
+          }
         }
         track.style.transform='translate3d('+x+'px,0,0)';
-        showIncoming();
       }
       frame=requestAnimationFrame(tick);
     }
