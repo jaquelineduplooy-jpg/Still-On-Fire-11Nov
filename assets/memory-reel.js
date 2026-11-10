@@ -344,10 +344,17 @@
     }
     function showIncoming() {
       if (typeof opts.onEnteringPhoto !== 'function' || !stepWidth) return;
-      // The rightmost frame whose left edge is already inside the window
-      // is the frame *coming in from the right*, not a separately shuffled hero.
-      const index=Math.max(0,Math.min(track.children.length-1,
-        Math.floor((parent.clientWidth-x-0.5)/stepWidth)));
+      // V31: follow the photo immediately LEFT of the rightmost visible tile.
+      // V30 selected the newest tile at the far-right edge, visually skipping
+      // the adjacent memory already in the strip. Require at least 35% of a
+      // tile to be visible before counting it as the rightmost photo; then
+      // display its LEFT neighbour. Keep the strip's order, speed, feed, and
+      // full-resolution image loader exactly as they were.
+      const frameWidth=stepWidth-(parseFloat(getComputedStyle(track).gap)||0);
+      const minVisible=Math.max(1,frameWidth*0.35);
+      const rightmost=Math.max(0,Math.min(track.children.length-1,
+        Math.floor((parent.clientWidth-x-minVisible)/stepWidth)));
+      const index=Math.max(0,rightmost-1);
       const frame=track.children[index];
       if (frame && frame !== incomingFrame) {
         incomingFrame=frame;
