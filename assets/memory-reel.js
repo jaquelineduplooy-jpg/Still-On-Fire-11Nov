@@ -300,7 +300,7 @@
     let running=true, frame=0, last=0, x=0, nextPhotoId=null;
     let stripKeys=[];
     let stepWidth=0;
-    const speed = Number(opts.speed) || 22;
+    const fallbackSpeed = Number(opts.speed) || 22;
     function makeFrame(photo) {
       const box=document.createElement('div');
       box.className=opts.frameClass;
@@ -352,6 +352,12 @@
       if (!running) return;
       const elapsed=last?Math.min(now-last,100)/1000:0;last=now;
       if (!document.hidden && track.firstElementChild) {
+        // In the ordered Live Reel, a complete thumbnail moves past the handoff
+        // point every N seconds, independent of HD/4K/mobile thumbnail widths.
+        // Since that same thumbnail becomes the hero, both advance together.
+        const secondsPerPhoto = Number(opts.secondsPerPhoto);
+        const speed = opts.ordered && secondsPerPhoto > 0 && stepWidth > 0
+          ? stepWidth / secondsPerPhoto : fallbackSpeed;
         x-=speed*elapsed;
         const first=track.firstElementChild;
         const gap=parseFloat(getComputedStyle(track).gap)||0;

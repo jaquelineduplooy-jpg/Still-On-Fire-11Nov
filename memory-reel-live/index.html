@@ -547,7 +547,7 @@
     <div class="badge" id="reelSyncStatus" role="status" aria-live="polite">Saved memories · connecting</div>
   </div>
 </div>
-<script src="../assets/memory-reel.js?v=32"></script>
+<script src="../assets/memory-reel.js?v=33"></script>
 <script>
   const liveReel=StillOnFireReel.mount({
     trackId: "strip",
@@ -561,6 +561,7 @@
     originalsManifestUrl: "../assets/full-resolution-photos.json",
     refreshEveryMs: 180000,
     speed: 19,
+    secondsPerPhoto: 10,
     pauseOnHover: false,
     heroInterval: 7800,
     heroFollowsStrip: true
