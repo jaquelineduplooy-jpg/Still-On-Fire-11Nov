@@ -1,5 +1,5 @@
 /**
- * STILL-ON-FIRE V25 - READ-ONLY PREBUILT GOOGLE DRIVE PHOTO INDEX
+ * STILL-ON-FIRE V29 - READ-ONLY PHOTO INDEX INCLUDING HEIC / HEIF
  * Prefer a NEW standalone Apps Script for Still-On-Fire so Tankwa stays unchanged.
  * This design avoids enumerating hundreds of Drive files in every HTTP request.
  *
@@ -14,6 +14,29 @@ var SOFIRE_FOLDER_ID = '1303l_SMGXM7H-x27RGDhT7H0Z-goqKjf';
 var SOFIRE_MAX_IMAGES = 2500;
 var SOFIRE_META = 'SOFIRE_V25_GALLERY_META';
 var SOFIRE_CHUNK_SIZE = 90; // Well under 9 KB per ScriptProperty value.
+
+// Accept iPhone HEIC / HEIF, even if Drive labels an uploaded file
+// application/octet-stream. The index never modifies or converts a file.
+// A HEIC file still needs a browser-displayable Google preview to play on TV.
+function sofireSupportedPhotoMime(file) {
+  var mime = String(file.getMimeType() || '').trim().toLowerCase();
+  var name = String(file.getName() || '').trim();
+  if (/\.heic$/i.test(name)) return 'image/heic';
+  if (/\.heif$/i.test(name)) return 'image/heif';
+  if (/^image\/(?:x-)?heic(?:-sequence)?$/.test(mime)) return 'image/heic';
+  if (/^image\/(?:x-)?heif(?:-sequence)?$/.test(mime)) return 'image/heif';
+  if (/^image\/(?:jpeg|png|webp|gif)$/.test(mime)) return mime;
+  return null;
+}
+
+function sofirePhotoTypeCounts(records) {
+  var types = {jpeg:0,png:0,webp:0,gif:0,heic:0,heif:0};
+  for (var n = 0; n < records.length; n++) {
+    var type = String(records[n][1] || '').replace(/^image\//,'');
+    if (Object.prototype.hasOwnProperty.call(types,type)) types[type]++;
+  }
+  return types;
+}
 
 function installGalleryRefresh() {
   // One 5-minute update trigger; avoid duplicate triggers across re-runs.
@@ -40,8 +63,8 @@ function refreshGallerySnapshot() {
       var items = folder.getFiles();
       while (items.hasNext() && records.length < SOFIRE_MAX_IMAGES) {
         var f = items.next();
-        var mime = f.getMimeType();
-        if (!/^image\/(jpeg|png|webp|gif)$/i.test(mime)) continue;
+        var mime = sofireSupportedPhotoMime(f);
+        if (!mime) continue;
         var id = f.getId();
         if (seen[id]) continue;
         seen[id] = true;
@@ -105,22 +128,31 @@ function doGet(e) {
         for (var k = 0; k < entries.length; k++) records.push(entries[k]);
       }
       if (records.length !== meta.count) throw new Error('SNAPSHOT_COUNT_MISMATCH');
+      var types = sofirePhotoTypeCounts(records);
       if (String(param.health || '') === '1') {
-        output = {ok:true,version:'V25',count:meta.count,updatedAt:meta.updatedAt};
+        output = {ok:true,version:'V29',count:meta.count,heicCount:types.heic,heifCount:types.heif,types:types,updatedAt:meta.updatedAt};
       } else {
         var images = records.map(function (entry) {
           var id = String(entry[0]);
           var key = encodeURIComponent(id);
-          return {
+          var heic = /^image\/(heic|heif)$/i.test(entry[1]);
+          var result = {
             id:id, mimeType:entry[1],
-            // Viewable public image preview at high requested size.
+            // Google may render HEIC/HEIF as a browser-compatible JPEG preview.
+            // This is a preview, not a promise of original-file quality.
             url:'https://drive.google.com/thumbnail?id=' + key + '&sz=w4096',
-            // Try an original file before the high-resolution preview.
-            originalUrl:'https://drive.google.com/uc?export=download&id=' + key,
-            fullSizeUrl:'https://lh3.googleusercontent.com/d/' + key + '=w4096'
+            thumbnailUrl:'https://lh3.googleusercontent.com/d/' + key + '=w4096'
           };
+          if (!heic) {
+            // For ordinary photos keep the proven original-size image path.
+            result.originalUrl = 'https://drive.google.com/uc?export=download&id=' + key;
+            result.fullSizeUrl = 'https://lh3.googleusercontent.com/d/' + key + '=w4096';
+          }
+          // Do not send an originalUrl for HEIC: many TV browsers cannot
+          // decode raw .heic. The reel tries the Google preview URLs instead.
+          return result;
         });
-        output = {ok:true,version:'V25',count:images.length,updatedAt:meta.updatedAt,images:images};
+        output = {ok:true,version:'V29',count:images.length,heicCount:types.heic,heifCount:types.heif,types:types,updatedAt:meta.updatedAt,images:images};
       }
     }
   } catch (err) {

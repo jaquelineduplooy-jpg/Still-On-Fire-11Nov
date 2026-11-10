@@ -1,0 +1,53 @@
+STILL-ON-FIRE V29 | INCLUDE iPHONE HEIC & HEIF PHOTOS
+====================================================
+
+CONFIRMED ISSUE IN V28
+----------------------
+The OLD Code.gs accepted only image/jpeg, image/png, image/webp, image/gif.
+HEIC / HEIF photo files were not indexed, so the live count could stay at 195.
+
+WHAT V29 DOES
+-------------
+- Indexes .heic and .heif (including uppercase extensions and files marked
+  application/octet-stream), plus image/heic and image/heif MIME variants.
+- Includes HEIC/HEIF photos in the live photo count and the shuffled gallery.
+- Requests browser-displayable Google thumbnails for these photos, NOT the raw
+  HEIC download, since most TV browsers cannot decode a .heic image directly.
+- Reports HEIC/HEIF totals and tests one HEIC/HEIF preview on Diagnostics.
+- Preserves V28's Live Reel layout, Spotify block, QR code, images and shuffle.
+- Does not delete, change, convert, or share any files in Google Drive.
+
+ESSENTIAL GOOGLE APPS SCRIPT STEPS (YOU ALREADY HAVE THE PROJECT)
+----------------------------------------------------------------
+1. Open your CURRENT Still-On-Fire Apps Script project at script.google.com.
+2. Replace Code.gs with ALL of scripts/Code.gs from this ZIP (also available
+   separately as Still-On-Fire-V29-HEIC-Code.gs).
+3. Save.
+4. Function dropdown -> refreshGallerySnapshot -> Run. Wait for success
+   under Executions. Your existing automatic 5-minute trigger remains.
+5. Deploy -> Manage deployments -> Edit your current web app -> Version:
+   NEW VERSION -> Deploy. IMPORTANT: Save alone does not update the /exec
+   web app; the deployment needs a new version. Keep the existing /exec URL.
+6. Open your EXISTING script URL with ?health=1 and confirm:
+   ok:true, version:'V29', count:(new total), heicCount:(number),
+   heifCount:(number). If it still says V25, you are on the old deployment.
+
+VERCEL STEPS
+------------
+7. Deploy all website files from this ZIP to the SAME Still-On-Fire project.
+   api/photos.js retains the SAME working Apps Script URL. Do not change it.
+8. Check /api/photos?health=1 for heicCount and heifCount, and open
+   /memory-reel-live/diagnostics.html to test one HEIC/HEIF preview.
+9. Refresh the TV reel. After caches refresh, its number should include those
+   new photo IDs that are inside the indexed shared folder and its subfolders.
+
+IMPORTANT: GOOGLE PREVIEWS ARE NOT GUARANTEED FOR EVERY HEIC
+----------------------------------------------------------
+Google Drive may generate a JPEG-compatible preview from a HEIC/HEIF image,
+but not every file has an accessible or high-resolution preview. If the
+health check counts it but Diagnostics reports the preview cannot display,
+create a JPEG copy of the particular photo in the shared folder (using the
+original phone/photo library export), then refreshGallerySnapshot again.
+The script will NOT silently convert or modify your family photographs.
+
+The new count cannot be verified against your private Drive from this package.

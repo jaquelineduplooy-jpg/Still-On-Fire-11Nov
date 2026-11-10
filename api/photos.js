@@ -82,7 +82,11 @@ async function handler(req,res){
  if(req.query&&String(req.query.config||'')==='1')return send(res,200,{ok:true,jsonpFeedUrl:FEED});
  try{
   const {entry,mode,errorCode}=await load();
-  const data={ok:true,version:'V25',mode,count:entry.photos.length,updatedAt:entry.updatedAt,cacheAgeSeconds:Math.round((Date.now()-entry.fetchedAt)/1000)};
+  // HEIC/HEIF are valid indexed images, but browser preview loading is tested
+  // separately; showing a count does not prove the TV can decode each file.
+  const heicCount=entry.photos.filter(p=>/^image\/(?:x-)?heic(?:-sequence)?$/i.test(p.mimeType||'')).length;
+  const heifCount=entry.photos.filter(p=>/^image\/(?:x-)?heif(?:-sequence)?$/i.test(p.mimeType||'')).length;
+  const data={ok:true,version:'V29',mode,count:entry.photos.length,heicCount,heifCount,updatedAt:entry.updatedAt,cacheAgeSeconds:Math.round((Date.now()-entry.fetchedAt)/1000)};
   if(errorCode)data.warningCode=errorCode;
   if(req.query&&String(req.query.health||'')==='1')return send(res,200,data);
   return send(res,200,{...data,images:entry.photos});

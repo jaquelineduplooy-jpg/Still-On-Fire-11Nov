@@ -48,6 +48,20 @@
     return { next, get drawn() {return consumed.slice();} };
   }
 
+  // V30 Live Reel only: preserve the gallery's supplied order, with no shuffle.
+  // The strip and hero share this one ordered sequence.
+  function createOrderedDeck(photos) {
+    let cursor = 0;
+    return {
+      next() {
+        if (!photos.length) return null;
+        const photo = photos[cursor];
+        cursor = (cursor + 1) % photos.length;
+        return photo;
+      }
+    };
+  }
+
   function sourceKey(raw, item) {
     const explicit = item && (item.fileId || item.driveId || item.id);
     if (typeof explicit === 'string' && /^[A-Za-z0-9_-]{20,}$/.test(explicit)) return 'drive:' + explicit;
@@ -239,16 +253,59 @@
     return { stop(){ running=false;clearTimeout(timer); } };
   }
 
+  // V30: display exactly the photo entering from the right-hand edge of
+  // the moving strip. Uses the SAME original-first HD image loader as V25.
+  // Pause freezes only the main photo; the filmstrip and Google feed keep running.
+  function buildIncomingHero(img, opts) {
+    if (!img) return { show(){}, pause(){}, resume(){}, stop(){} };
+    let running = true, paused = false, token = 0, latest = null;
+    img.style.objectFit = 'contain';
+    img.style.objectPosition = 'center';
+    img.style.filter = 'none';
+    img.style.transform = 'none';
+    img.decoding = 'async';
+    img.loading = 'eager';
+    img.setAttribute('fetchpriority','high');
+
+    async function show(photo) {
+      latest = photo;
+      if (!running || paused || !photo) return;
+      const current = ++token;
+      const want = Math.max((img.clientWidth || 1100)*(devicePixelRatio||1),innerWidth>=2400?3200:2048);
+      const loaded = await bestForHero(photo,want,4800);
+      // A pause or newer incoming picture invalidates an in-flight image load.
+      if (!running || paused || current !== token || !loaded) return;
+      img.src = loaded.src;
+      img.dataset.photoKey = photo.key;
+      img.dataset.photoWidth = String(loaded.width);
+      img.dataset.photoHeight = String(loaded.height);
+      img.style.maxWidth = loaded.width + 'px';
+      img.style.marginInline = 'auto';
+      img.dataset.sourceQuality = loaded.width>=3000?'4K candidate':loaded.width>=1920?'HD candidate':'below HD';
+      img.style.visibility = 'visible';
+      if (typeof opts.onHeroChange === 'function') opts.onHeroChange(photo.key);
+    }
+    if (!img.dataset.photoKey) img.removeAttribute('src');
+    return {
+      show,
+      pause() { paused = true; ++token; },
+      resume() { paused = false; if(latest) show(latest); },
+      stop() { running = false; ++token; }
+    };
+  }
+
   function buildStrip(track,photos,opts) {
     const parent = track.parentElement;
-    const deck = createDeck(photos,opts.key+':strip');
+    const deck = opts.ordered ? createOrderedDeck(photos) : createDeck(photos,opts.key+':strip');
     let running=true, frame=0, last=0, x=0, nextPhotoId=null;
     let stripKeys=[];
+    let incomingFrame=null, stepWidth=0;
     const speed = Number(opts.speed) || 22;
     function makeFrame(photo) {
       const box=document.createElement('div');
       box.className=opts.frameClass;
       box.dataset.photoKey=photo.key;
+      box._reelPhoto = photo;
       const img=document.createElement('img');
       img.alt='Family memory';
       img.loading='eager'; img.decoding='async';
@@ -266,7 +323,7 @@
       const avoid=new Set(stripKeys.length?[stripKeys[stripKeys.length-1]]:[]);
       const hero=opts.heroId?document.getElementById(opts.heroId):null;
       if (hero && hero.dataset.photoKey && photos.length>2) avoid.add(hero.dataset.photoKey);
-      const photo=deck.next(avoid);
+      const photo=opts.ordered ? deck.next() : deck.next(avoid);
       if (!photo) return;
       track.appendChild(makeFrame(photo));
       stripKeys.push(photo.key);
@@ -278,10 +335,24 @@
       track.replaceChildren(test);
       const frameWidth=test.getBoundingClientRect().width||280;
       const gap=parseFloat(getComputedStyle(track).gap)||0;
-      const total=Math.ceil(parent.clientWidth/(frameWidth+gap))+5;
-      track.replaceChildren();stripKeys=[];x=0;last=0;
+      stepWidth=frameWidth+gap;
+      const total=Math.ceil(parent.clientWidth/stepWidth)+5;
+      track.replaceChildren();stripKeys=[];x=0;last=0;incomingFrame=null;
       for(let i=0;i<Math.max(7,total);i++)appendOne();
       track.style.transform='translate3d(0px,0,0)';
+      showIncoming();
+    }
+    function showIncoming() {
+      if (typeof opts.onEnteringPhoto !== 'function' || !stepWidth) return;
+      // The rightmost frame whose left edge is already inside the window
+      // is the frame *coming in from the right*, not a separately shuffled hero.
+      const index=Math.max(0,Math.min(track.children.length-1,
+        Math.floor((parent.clientWidth-x-0.5)/stepWidth)));
+      const frame=track.children[index];
+      if (frame && frame !== incomingFrame) {
+        incomingFrame=frame;
+        opts.onEnteringPhoto(frame._reelPhoto);
+      }
     }
     function tick(now) {
       if (!running) return;
@@ -298,6 +369,7 @@
           appendOne();
         }
         track.style.transform='translate3d('+x+'px,0,0)';
+        showIncoming();
       }
       frame=requestAnimationFrame(tick);
     }
@@ -425,6 +497,8 @@
     if (!backup.length) throw new Error('No backup images supplied');
     let activeSet='', liveCount=0, strip=null, slide=null, syncing=false, online=false, localCount=0;
     let refreshHandle=0;
+    const incomingMode=!!opts.heroFollowsStrip;
+    let mainPhotoPaused=false;
     const debug={source:'saved',photos:backup.length,changes:[]};
     function report(str) { if (status) status.textContent=str; }
     function show(photos,source) {
@@ -433,8 +507,18 @@
       if(strip)strip.stop(); if(slide)slide.stop();
       activeSet=signature;
       debug.source=source;debug.photos=photos.length;
-      strip=buildStrip(track,photos,opts);
-      slide=buildHero(hero,photos,Object.assign({},opts,{onHeroChange:key=>{debug.changes.push(key);if(debug.changes.length>300)debug.changes.shift();}}));
+      const onHeroChange=key=>{debug.changes.push(key);if(debug.changes.length>300)debug.changes.shift();};
+      if(incomingMode) {
+        // The hero must exist before the strip announces its first visible frame.
+        slide=buildIncomingHero(hero,Object.assign({},opts,{onHeroChange}));
+        if(mainPhotoPaused)slide.pause();
+        strip=buildStrip(track,photos,Object.assign({},opts,{
+          ordered:true, onEnteringPhoto:photo=>slide.show(photo)
+        }));
+      } else {
+        strip=buildStrip(track,photos,opts);
+        slide=buildHero(hero,photos,Object.assign({},opts,{onHeroChange}));
+      }
     }
     show(backup,'saved');
     let rememberedCount=0;
@@ -456,7 +540,7 @@
         if(photos.length && !online) {
           localCount=photos.length;
           show(photos,'local-originals');
-          report('Original photo library · '+photos.length+' photos · shuffled');
+          report('Original photo library · '+photos.length+' photos · '+(incomingMode?'in order':'shuffled'));
         }
       }catch (_) { /* Optional pack: never block the reel */ }
     }
@@ -485,7 +569,7 @@
         liveCount=live.length;online=true;
         writeLastGood(live);
         show(live,feed.mode==='cached'?'cached':'google-drive');
-        report((feed.mode==='cached'?'Last synced Drive gallery':'Google Drive live')+' · '+live.length+' distinct photos · shuffled');
+        report((feed.mode==='cached'?'Last synced Drive gallery':'Google Drive live')+' · '+live.length+' distinct photos · '+(incomingMode?'in order':'shuffled'));
         debug.lastError=feed.warningCode||null;
       } catch(err) {
         console.warn('[Memory Reel V24] Gallery not available:',err);
@@ -506,6 +590,13 @@
       get source(){return debug.source;},
       get heroHistory(){return debug.changes.slice();},
       refresh:sync,
+      toggleHeroPause() {
+        if(!incomingMode)return false;
+        mainPhotoPaused=!mainPhotoPaused;
+        if(slide){if(mainPhotoPaused)slide.pause();else slide.resume();}
+        return mainPhotoPaused;
+      },
+      get isHeroPaused(){return mainPhotoPaused;},
       stop(){if(strip)strip.stop();if(slide)slide.stop();clearInterval(refreshHandle);}
     };
   }

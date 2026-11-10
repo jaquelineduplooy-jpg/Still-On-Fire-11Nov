@@ -417,6 +417,26 @@
     .badge { white-space:normal !important; max-width:100% !important; width:auto !important; overflow-wrap:anywhere; }
   }
 
+  /* V30: a small overlay control; no other reel layout or image styling changes. */
+  .hero-pause {
+    position:absolute;
+    z-index:3;
+    right:16px;
+    bottom:16px;
+    padding:10px 15px;
+    border:1px solid rgba(183,222,251,.46);
+    border-radius:999px;
+    background:rgba(6,22,40,.84);
+    color:#f7fbff;
+    font:700 .84rem/1.2 Inter,ui-sans-serif,system-ui,sans-serif;
+    letter-spacing:.015em;
+    cursor:pointer;
+    box-shadow:0 6px 22px rgba(0,0,0,.32);
+    backdrop-filter:blur(8px);
+  }
+  .hero-pause:hover,.hero-pause:focus-visible {background:#1b4b73;border-color:#a9d4f5;}
+  .hero-pause:focus-visible {outline:2px solid #a9d4f5;outline-offset:3px;}
+
   /* V28: one soundtrack link, replacing only the two original bottom cards. */
   .reel-footer.spotify-feature {
     display:grid;
@@ -498,6 +518,7 @@
   <div class="hero-stage">
     <div class="main-photo" id="mainPhotoWrap">
       <img id="heroImage" alt="Celebration memory" decoding="async" fetchpriority="high" />
+      <button class="hero-pause" id="heroPause" type="button" aria-pressed="false" aria-label="Pause main photo">Ⅱ Pause photo</button>
     </div>
 
     <section class="reel-panel" aria-label="Rolling memory reel">
@@ -526,9 +547,9 @@
     <div class="badge" id="reelSyncStatus" role="status" aria-live="polite">Saved memories · connecting</div>
   </div>
 </div>
-<script src="../assets/memory-reel.js?v=25"></script>
+<script src="../assets/memory-reel.js?v=30"></script>
 <script>
-  StillOnFireReel.mount({
+  const liveReel=StillOnFireReel.mount({
     trackId: "strip",
     heroId: "heroImage",
     statusId: "reelSyncStatus",
@@ -541,7 +562,15 @@
     refreshEveryMs: 180000,
     speed: 19,
     pauseOnHover: false,
-    heroInterval: 7800
+    heroInterval: 7800,
+    heroFollowsStrip: true
+  });
+  const heroPause=document.getElementById('heroPause');
+  heroPause.addEventListener('click',function(){
+    const paused=liveReel.toggleHeroPause();
+    heroPause.textContent=paused?'▶ Resume photo':'Ⅱ Pause photo';
+    heroPause.setAttribute('aria-pressed',String(paused));
+    heroPause.setAttribute('aria-label',paused?'Resume main photo':'Pause main photo');
   });
 </script>
 </body>
